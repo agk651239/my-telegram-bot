@@ -1,10 +1,11 @@
-import asyncio
 from pyrogram import Client, filters, types
+import asyncio
 from aiohttp import web
 from config import *
 from database import *
 from helpers import get_shortlink, get_file_info
 
+# बोट क्लाइंट सेटअप
 app = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 # Force Subscribe Check
@@ -33,9 +34,10 @@ async def search(client, message):
     query = message.text.replace("/search ", "")
     files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=10)
     
-    if not files: await message.reply("कोई फाइल नहीं मिली।"); return
+    if not files: 
+        await message.reply("कोई फाइल नहीं मिली।")
+        return
     
-    # Inline Buttons के साथ रिप्लाई
     buttons = [[types.InlineKeyboardButton(f['name'], callback_data=f['file_id'])] for f in files]
     await message.reply("फाइलें मिलीं:", reply_markup=types.InlineKeyboardMarkup(buttons))
 
@@ -51,22 +53,26 @@ async def broadcast(client, message):
         try: await client.send_message(user['user_id'], msg)
         except: pass
     await message.reply("✅ ब्रॉडकास्ट पूरा हुआ।")
-    
-# Ping (Health Check) Task - Render को सोने नहीं देगा
-async def ping_server():
-    while True:
-        await asyncio.sleep(300) # 5 मिनट में पिंग
-        print("Bot is alive...")
 
-# Web Server
+# वेब सर्वर और बोट को एक साथ चलाने के लिए फंक्शन
 async def start_web():
     app_web = web.Application()
     app_web.router.add_get('/', lambda r: web.Response(text="Bot is running"))
     runner = web.AppRunner(app_web)
     await runner.setup()
     await web.TCPSite(runner, '0.0.0.0', 10000).start()
+    print("Web Server started on port 10000")
 
-loop = asyncio.get_event_loop()
-loop.create_task(start_web())
-loop.create_task(ping_server())
-app.run()
+async def ping_server():
+    while True:
+        await asyncio.sleep(300)
+        print("Bot is alive...")
+
+# मुख्य हिस्सा (यह सुनिश्चित करेगा कि सब कुछ सही से चले)
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.create_task(start_web())
+    loop.create_task(ping_server())
+    print("Starting Telegram Bot...")
+    app.run()
+    
