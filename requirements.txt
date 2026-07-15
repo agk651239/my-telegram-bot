@@ -1,1 +1,8 @@
+pyrogram
+tgcrypto
+motor
+pymongo
+python-dotenv
+requests
+aiohttp
 
