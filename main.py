@@ -43,6 +43,15 @@ async def search(client, message):
 async def callback(client, query):
     await client.send_document(query.message.chat.id, query.data)
 
+@app.on_message(filters.command("broadcast") & filters.user(ADMIN_IDS))
+async def broadcast(client, message):
+    users = await get_all_users()
+    msg = message.text.replace("/broadcast ", "")
+    async for user in users:
+        try: await client.send_message(user['user_id'], msg)
+        except: pass
+    await message.reply("✅ ब्रॉडकास्ट पूरा हुआ।")
+    
 # Ping (Health Check) Task - Render को सोने नहीं देगा
 async def ping_server():
     while True:
