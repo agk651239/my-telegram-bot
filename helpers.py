@@ -1,20 +1,26 @@
-import requests
-import os
-from config import BOT_USERNAME
+import aiohttp
+from config import SHORTENER_API, SHORTENER_WEBSITE
 
-def get_shortlink(user_id):
-    api_key = os.environ.get("SHORTENER_API")
-    api_url = os.environ.get("SHORTENER_WEBSITE")
-    url = f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}"
+# शॉर्टनर लिंक जेनरेट करने के लिए
+async def get_shortlink(url):
+    if not SHORTENER_API or not SHORTENER_WEBSITE:
+        return url # अगर API नहीं है, तो ओरिजिनल लिंक ही भेजें
+    
+    api_url = f"{SHORTENER_WEBSITE}/api?api={SHORTENER_API}&url={url}"
     try:
-        resp = requests.get(f"{api_url}/api?api={api_key}&url={url}").json()
-        if resp.get("status") == "success": return resp.get("shortenedUrl")
-    except: pass
-    return url
+        async with aiohttp.ClientSession() as session:
+            async with session.get(api_url) as response:
+                data = await response.json()
+                return data.get("shortenedUrl", url)
+    except:
+        return url
 
-def get_file_info(message):
-    media = message.video or message.document
-    name = message.caption or "File"
-    size = f"{round(media.file_size / (1024 * 1024), 2)} MB"
-    return name, size
+# फाइल की जानकारी के लिए (अगर आपको जरूरत हो)
+async def get_file_info(message):
+    file = message.document or message.video or message.audio
+    return {
+        "file_id": file.file_id,
+        "file_name": getattr(file, "file_name", "Unknown_File"),
+        "file_size": getattr(file, "file_size", 0)
+    }
     
