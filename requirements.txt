@@ -5,4 +5,5 @@ pymongo
 python-dotenv
 requests
 aiohttp
+dnspython
 
