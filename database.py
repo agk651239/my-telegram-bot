@@ -19,4 +19,12 @@ async def set_verify(user_id):
 
 async def add_file(file_data):
     await db.files.insert_one(file_data)
+
+# नया फंक्शन: Broadcast के लिए सभी यूजर्स निकालना
+async def get_all_users():
+    return db.users.find({})
+
+# नया फंक्शन: Stats के लिए
+async def get_total_users():
+    return await db.users.count_documents({})
     
