@@ -21,16 +21,15 @@ async def set_verify(user_id):
         upsert=True
     )
 
-# 3. फाइल इंडेक्स (सेव) करें
+# 3. फाइल इंडेक्स (सेव) करें - डुप्लीकेट रोकने के लिए update_one का उपयोग
 async def add_file(file_data):
-    # यह सुनिश्चित करता है कि फाइल आईडी डुप्लीकेट न हो
     await db.files.update_one(
         {"file_id": file_data["file_id"]},
         {"$set": file_data},
         upsert=True
     )
 
-# 4. ब्रॉडकास्ट के लिए सभी यूजर आईडी निकालें
+# 4. ब्रॉडकास्ट के लिए सभी यूजर्स निकालना (सही तरीके से List में)
 async def get_all_users():
     cursor = db.users.find({})
     return await cursor.to_list(length=None)
@@ -38,4 +37,12 @@ async def get_all_users():
 # 5. कुल यूजर्स की संख्या
 async def get_total_users():
     return await db.users.count_documents({})
+
+# 6. नया यूजर जोड़ें (जब यूजर /start दबाए)
+async def add_user(user_id):
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"user_id": user_id}},
+        upsert=True
+    )
     
