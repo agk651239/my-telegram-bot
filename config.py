@@ -11,4 +11,4 @@ VERIFY_EXPIRE = int(os.environ.get("VERIFY_EXPIRE", 86400))
 ADMIN_IDS = [int(x) for x in os.environ.get("ADMIN_IDS", "").split(",")]
 DATABASE_CHANNEL = int(os.environ.get("DATABASE_CHANNEL", 0))
 LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", 0))
-
+BOT_USERNAME = os.environ.get("BOT_USERNAME", "")
