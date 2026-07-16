@@ -1,7 +1,6 @@
 from pyrogram import Client, filters, types, idle
 from pyrogram.errors import FloodWait
-import asyncio, aiohttp, time
-from bson import ObjectId
+import asyncio
 from config import *
 from database import *
 from helpers import *
@@ -37,15 +36,18 @@ async def auto_search(client, message):
     for f in files:
         size_mb = round(f.get("file_size", 0) / (1024 * 1024), 2)
         text = f"📂 **नाम:** {f['name']}\n💾 **साइज:** {size_mb} MB"
-        buttons = [[types.InlineKeyboardButton("📥 फाइल प्राप्त करें", callback_data=str(f['_id']))]]
+        buttons = [[types.InlineKeyboardButton("📥 फाइल प्राप्त करें (लिंक)", callback_data=str(f['_id']))]]
         
+        # यहाँ सुरक्षित तरीके से फोटो/टेक्स्ट भेजा जा रहा है
         try:
             if f.get("thumb_id"):
+                # थंबनेल को फोटो की तरह भेजने के बजाय सुरक्षित तरीके से भेजें
                 await client.send_photo(message.chat.id, f['thumb_id'], caption=text, reply_markup=types.InlineKeyboardMarkup(buttons))
             else:
                 await message.reply(text, reply_markup=types.InlineKeyboardMarkup(buttons))
-        except Exception as e:
-            await message.reply(f"❌ एरर: {e}")
+        except Exception:
+            # अगर एरर आए, तो बिना थंबनेल के टेक्स्ट भेजें
+            await message.reply(text, reply_markup=types.InlineKeyboardMarkup(buttons))
 
 @app.on_callback_query()
 async def callback(client, query):
@@ -62,25 +64,19 @@ async def callback(client, query):
         await query.answer("फाइल मौजूद नहीं है।", show_alert=True)
         return
 
-    status_msg = await query.message.reply("⏳ **फाइल आ रही है, कृपया प्रतीक्षा करें...**")
+    status_msg = await query.message.reply("⏳ **फाइल भेजी जा रही है...**")
     
     try:
-        # FloodWait हैंडलिंग के साथ फाइल भेजना
-        try:
-            if file_doc.get("thumb_id"):
-                msg = await client.send_video(query.message.chat.id, file_doc['file_id'])
-            else:
-                msg = await client.send_document(query.message.chat.id, file_doc['file_id'])
-            await status_msg.edit("✅ **फाइल सफलतापूर्वक भेजी गई!**")
-        except FloodWait as e:
-            await status_msg.edit(f"⏳ **टेलीग्राम लिमिट (Flood):** कृपया {e.value} सेकंड प्रतीक्षा करें।")
-            return
+        # सीधे वीडियो भेजें (क्योंकि आपने कहा था आप वीडियो ही अपलोड करते हैं)
+        msg = await client.send_video(query.message.chat.id, file_doc['file_id'])
+        await status_msg.delete()
             
+        # डिलीट टाइमर
         await asyncio.sleep(FILE_DELETE_TIME)
-        try: 
-            await msg.delete()
-            await status_msg.delete()
+        try: await msg.delete()
         except: pass
+    except FloodWait as e:
+        await status_msg.edit(f"⏳ **लिमिट:** {e.value} सेकंड प्रतीक्षा करें।")
     except Exception as e:
         await status_msg.edit(f"❌ **एरर:** {str(e)[:50]}")
 
@@ -105,4 +101,4 @@ if __name__ == "__main__":
     loop.run_until_complete(create_indexes())
     loop.run_until_complete(send_log(app, "🚀 **बोट ऑनलाइन है!**"))
     idle()
-
+    
