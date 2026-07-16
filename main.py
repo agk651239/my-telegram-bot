@@ -1,4 +1,5 @@
-from pyrogram import Client, filters, types
+from pyrogram import Client, filters, types, idle
+from pyrogram.errors import FloodWait
 import asyncio, aiohttp, time
 from bson import ObjectId
 from config import *
@@ -24,7 +25,6 @@ async def start(client, message):
         return
     await message.reply("बोट चालू है! मूवी या फाइल का नाम लिखकर सर्च करें।")
 
-# ऑटो सर्च (बिना किसी कमांड के, सिर्फ एडमिन के लिए)
 @app.on_message(filters.text & ~filters.command(["start", "check", "search"]) & filters.user(ADMIN_IDS))
 async def auto_search(client, message):
     query = message.text
@@ -39,10 +39,13 @@ async def auto_search(client, message):
         text = f"📂 **नाम:** {f['name']}\n💾 **साइज:** {size_mb} MB"
         buttons = [[types.InlineKeyboardButton("📥 फाइल प्राप्त करें", callback_data=str(f['_id']))]]
         
-        if f.get("thumb_id"):
-            await client.send_photo(message.chat.id, f['thumb_id'], caption=text, reply_markup=types.InlineKeyboardMarkup(buttons))
-        else:
-            await message.reply(text, reply_markup=types.InlineKeyboardMarkup(buttons))
+        try:
+            if f.get("thumb_id"):
+                await client.send_photo(message.chat.id, f['thumb_id'], caption=text, reply_markup=types.InlineKeyboardMarkup(buttons))
+            else:
+                await message.reply(text, reply_markup=types.InlineKeyboardMarkup(buttons))
+        except Exception as e:
+            await message.reply(f"❌ एरर: {e}")
 
 @app.on_callback_query()
 async def callback(client, query):
@@ -59,36 +62,34 @@ async def callback(client, query):
         await query.answer("फाइल मौजूद नहीं है।", show_alert=True)
         return
 
-    # स्टेटस मैसेज
     status_msg = await query.message.reply("⏳ **फाइल आ रही है, कृपया प्रतीक्षा करें...**")
     
-    # फाइल भेजने का लॉजिक (thumb_id के आधार पर वीडियो या डॉक्यूमेंट पहचानें)
     try:
-        if file_doc.get("thumb_id"):
-            msg = await client.send_video(query.message.chat.id, file_doc['file_id'])
-            await status_msg.edit("✅ **वीडियो सफलतापूर्वक भेजा गया!**")
-        else:
-            msg = await client.send_document(query.message.chat.id, file_doc['file_id'])
-            await status_msg.edit("✅ **डॉक्यूमेंट सफलतापूर्वक भेजा गया!**")
-    except Exception as e:
-        await status_msg.edit(f"❌ **फाइल भेजने में एरर आया:** {str(e)[:50]}")
-        return
+        # FloodWait हैंडलिंग के साथ फाइल भेजना
+        try:
+            if file_doc.get("thumb_id"):
+                msg = await client.send_video(query.message.chat.id, file_doc['file_id'])
+            else:
+                msg = await client.send_document(query.message.chat.id, file_doc['file_id'])
+            await status_msg.edit("✅ **फाइल सफलतापूर्वक भेजी गई!**")
+        except FloodWait as e:
+            await status_msg.edit(f"⏳ **टेलीग्राम लिमिट (Flood):** कृपया {e.value} सेकंड प्रतीक्षा करें।")
+            return
             
-    # डिलीट टाइमर
-    await asyncio.sleep(FILE_DELETE_TIME)
-    try: 
-        await msg.delete()
-        await status_msg.delete()
-    except: pass
+        await asyncio.sleep(FILE_DELETE_TIME)
+        try: 
+            await msg.delete()
+            await status_msg.delete()
+        except: pass
+    except Exception as e:
+        await status_msg.edit(f"❌ **एरर:** {str(e)[:50]}")
 
 @app.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video))
 async def index_files(client, message):
     file_info = await get_file_info(message)
     if file_info:
         await add_file(file_info)
-        # फाइल इंडेक्सिंग का लॉग
-        log_text = f"✅ **नई फाइल इंडेक्स हुई:**\n📂 **नाम:** {file_info['name']}\n💾 **साइज:** {round(file_info['file_size'] / (1024 * 1024), 2)} MB"
-        await send_log(client, log_text)
+        await send_log(client, f"✅ **नई फाइल इंडेक्स हुई:**\n📂 {file_info['name']}")
 
 async def start_web():
     app_web = web.Application()
@@ -100,10 +101,8 @@ async def start_web():
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.create_task(start_web())
-    
     app.start()
-    # बोट ऑनलाइन का लॉग
-    loop.run_until_complete(create_indexes()) # इंडेक्सिंग शुरू करें
-    loop.run_until_complete(send_log(app, "🚀 **बोट सफलतापूर्वक ऑनलाइन हो गया है!**"))
-    app.idle()
-    
+    loop.run_until_complete(create_indexes())
+    loop.run_until_complete(send_log(app, "🚀 **बोट ऑनलाइन है!**"))
+    idle()
+
