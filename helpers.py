@@ -11,16 +11,16 @@ async def get_shortlink(url):
     if not SHORTENER_API or not SHORTENER_WEBSITE:
         return url
     
-    # API URL का निर्माण (ज्यादातर शॉर्टनर्स इसी फॉर्मेट पर काम करते हैं)
+    # API URL का निर्माण 
     api_url = f"{SHORTENER_WEBSITE}/api?api={SHORTENER_API}&url={url}"
     
     try:
         async with aiohttp.ClientSession() as session:
-            # 10 सेकंड का टाइमआउट लगाया ताकि बोट हैंग न हो
+            # 10 सेकंड का टाइमआउट लगाया
             async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # शॉर्टनर रिस्पॉन्स में अलग-अलग कीज़ हो सकती हैं, सबसे कॉमन चेक करें
+                    # शॉर्टनर रिस्पॉन्स में सबसे कॉमन कीज़ चेक करें
                     shortened = data.get("shortenedUrl") or data.get("shorturl") or data.get("link")
                     return shortened if shortened else url
                 else:
@@ -30,12 +30,12 @@ async def get_shortlink(url):
         logger.error(f"Shortener API Error: {e}")
         return url
 
-# 2. फाइल की जानकारी (इंडेक्सिंग के लिए)
+# 2. फाइल की जानकारी (इंडेक्सिंग के लिए) - मॉडिफाइड
 async def get_file_info(message):
     # सपोर्टेड फाइल टाइप्स
     file = message.document or message.video or message.audio or message.photo
     
-    # अगर फाइल का नाम नहीं मिल रहा तो 'Unnamed File' सेट करें
+    # फाइल का नाम निकालना
     file_name = None
     if message.caption:
         file_name = message.caption
@@ -43,10 +43,18 @@ async def get_file_info(message):
         file_name = file.file_name
     else:
         file_name = "Unnamed_File"
+    
+    # थंबनेल का ID निकालना (अगर मौजूद हो)
+    thumb_id = None
+    if hasattr(file, "thumbs") and file.thumbs:
+        thumb_id = file.thumbs[0].file_id
+    elif message.photo:
+        thumb_id = message.photo[-1].file_id # अगर फोटो है तो उसकी आखिरी सबसे बड़ी फाइल ID
         
     return {
         "file_id": file.file_id,
         "name": file_name,
-        "file_size": getattr(file, "file_size", 0)
+        "file_size": getattr(file, "file_size", 0),
+        "thumb_id": thumb_id
     }
     
