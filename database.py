@@ -1,4 +1,5 @@
 import time
+from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import DATABASE_URI, DATABASE_NAME, ADMIN_IDS, VERIFY_EXPIRE_TIME
 
@@ -6,15 +7,13 @@ from config import DATABASE_URI, DATABASE_NAME, ADMIN_IDS, VERIFY_EXPIRE_TIME
 client = AsyncIOMotorClient(DATABASE_URI)
 db = client[DATABASE_NAME]
 
-# 1. वेरिफिकेशन चेक करें (Admin हमेशा verified रहेगा)
+# 1. वेरिफिकेशन चेक करें
 async def is_verified(user_id):
-    if user_id in ADMIN_IDS: 
-        return True
+    if user_id in ADMIN_IDS: return True
     user = await db.users.find_one({"user_id": user_id})
-    # अगर यूजर मौजूद है और उसका expire_at समय अभी के समय (time.time()) से ज्यादा है
     return user is not None and user.get("expire_at", 0) > time.time()
 
-# 2. वेरिफिकेशन सेट करें (Config में दिए गए समय के अनुसार)
+# 2. वेरिफिकेशन सेट करें
 async def set_verify(user_id):
     expire_time = time.time() + VERIFY_EXPIRE_TIME
     await db.users.update_one(
@@ -31,7 +30,7 @@ async def add_file(file_data):
         upsert=True
     )
 
-# 4. यूजर रजिस्टर करें (जब वो /start दबाए)
+# 4. यूजर रजिस्टर करें
 async def add_user(user_id):
     await db.users.update_one(
         {"user_id": user_id},
@@ -39,16 +38,16 @@ async def add_user(user_id):
         upsert=True
     )
 
-# 5. ब्रॉडकास्ट के लिए सभी यूजर्स निकालना
-async def get_all_users():
-    cursor = db.users.find({})
-    return await cursor.to_list(length=None)
-
-# 6. कुल यूजर्स की संख्या
-async def get_total_users():
-    return await db.users.count_documents({})
-
-# 7. स्पेसिफिक यूजर का डेटाबेस से स्टेटस निकालने के लिए (Admin के /check कमांड हेतु)
+# 5. एडमिन के लिए यूजर डेटा निकालना
 async def get_user_data(user_id):
     return await db.users.find_one({"user_id": user_id})
-    
+
+# 6. (नया) फाइल ढूंढना - ObjectId या file_id दोनों के लिए मददगार
+async def get_file_by_id(file_id_str):
+    try:
+        # अगर यह ObjectId है
+        return await db.files.find_one({"_id": ObjectId(file_id_str)})
+    except:
+        # अगर यह सादी string (file_id) है
+        return await db.files.find_one({"file_id": file_id_str})
+        
