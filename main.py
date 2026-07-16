@@ -53,11 +53,23 @@ async def search(client, message):
 
 @app.on_callback_query()
 async def callback(client, query):
-    if not await is_verified(query.from_user.id):
-        link = await get_shortlink(f"https://t.me/{BOT_USERNAME}?start=verify_{query.from_user.id}")
-        await query.message.reply(f"🔗 फाइल पाने के लिए लिंक पर क्लिक करें:\n{link}")
+    user_id = query.from_user.id
+    
+    # चेक करें कि यूजर वेरीफाइड है या नहीं
+    if not await is_verified(user_id):
+        # शॉर्ट लिंक जनरेट करें
+        short_link = await get_shortlink(f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}")
+        
+        # बटन के रूप में लिंक भेजें
+        buttons = [[types.InlineKeyboardButton("🔗 वेरिफिकेशन के लिए यहाँ क्लिक करें", url=short_link)]]
+        
+        await query.message.reply(
+            "⚠️ फाइल पाने के लिए पहले वेरिफिकेशन जरूरी है।\nनीचे दिए गए बटन पर क्लिक करें:",
+            reply_markup=types.InlineKeyboardMarkup(buttons)
+        )
         return
     
+    # अगर वेरीफाइड है, तो फाइल भेजें
     file_doc = await db.files.find_one({"_id": ObjectId(query.data)})
     if file_doc:
         msg = await client.send_document(query.message.chat.id, file_doc['file_id'])
