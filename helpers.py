@@ -20,7 +20,7 @@ async def get_shortlink(url):
             async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # शॉर्टनर रिस्पॉन्स में सबसे कॉमन कीज़ चेक करें
+                    # शॉर्टनर रिस्पॉन्स में अलग-अलग कीज़ को चेक करना
                     shortened = data.get("shortenedUrl") or data.get("shorturl") or data.get("link")
                     return shortened if shortened else url
                 else:
@@ -30,10 +30,14 @@ async def get_shortlink(url):
         logger.error(f"Shortener API Error: {e}")
         return url
 
-# 2. फाइल की जानकारी (इंडेक्सिंग के लिए) - मॉडिफाइड
+# 2. फाइल की जानकारी (इंडेक्सिंग के लिए)
 async def get_file_info(message):
-    # सपोर्टेड फाइल टाइप्स
+    # फाइल को पहचानें
     file = message.document or message.video or message.audio or message.photo
+    
+    # अगर फाइल नहीं मिलती, तो None भेजें ताकि बोट क्रैश न हो
+    if not file:
+        return None
     
     # फाइल का नाम निकालना
     file_name = None
@@ -44,12 +48,14 @@ async def get_file_info(message):
     else:
         file_name = "Unnamed_File"
     
-    # थंबनेल का ID निकालना (अगर मौजूद हो)
+    # थंबनेल का ID निकालना
     thumb_id = None
     if hasattr(file, "thumbs") and file.thumbs:
+        # वीडियो/डॉक्यूमेंट का थंबनेल
         thumb_id = file.thumbs[0].file_id
     elif message.photo:
-        thumb_id = message.photo[-1].file_id # अगर फोटो है तो उसकी आखिरी सबसे बड़ी फाइल ID
+        # अगर फोटो ही फाइल है, तो उसकी आखिरी सबसे बड़ी ID
+        thumb_id = message.photo[-1].file_id
         
     return {
         "file_id": file.file_id,
