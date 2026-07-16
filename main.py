@@ -1,58 +1,76 @@
 from pyrogram import Client, filters, types, idle
 from pyrogram.errors import FloodWait
 import asyncio
+import logging
+
 from config import *
 from database import *
 from helpers import *
 from aiohttp import web
 
-app = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+# बोट का मुख्य क्लाइंट सेटअप
+app = Client(
+    "bot_session", 
+    api_id=API_ID, 
+    api_hash=API_HASH, 
+    bot_token=BOT_TOKEN
+)
 
+# लॉगिंग फंक्शन
 async def send_log(client, text):
     if LOG_CHANNEL:
-        try: await client.send_message(LOG_CHANNEL, text)
-        except: pass
+        try:
+            await client.send_message(LOG_CHANNEL, text)
+        except Exception:
+            pass
 
+# स्टार्ट कमांड
 @app.on_message(filters.command("start"))
 async def start(client, message):
     user_id = message.from_user.id
     await add_user(user_id)
+    
     if "verify_" in message.text:
         await set_verify(user_id)
         await message.reply("✅ वेरिफिकेशन सफल! अब आप 24 घंटे तक फाइलें डाउनलोड कर सकते हैं।")
-        await send_log(client, f"👤 यूजर वेरीफाई हुआ: {message.from_user.mention}")
         return
+        
     await message.reply("बोट चालू है! मूवी या फाइल का नाम लिखकर सर्च करें।")
 
-@app.on_message(filters.text & ~filters.command(["start", "check", "search"]) & filters.user(ADMIN_IDS))
+# ऑटो-सर्च (सर्च और थंबनेल सिस्टम)
+@app.on_message(filters.text & ~filters.command(["start"]) & filters.user(ADMIN_IDS))
 async def auto_search(client, message):
     query = message.text
     files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=5)
     
-    if not files: 
+    if not files:
         await message.reply("❌ कोई फाइल नहीं मिली।")
         return
-    
+        
     for f in files:
         size_mb = round(f.get("file_size", 0) / (1024 * 1024), 2)
-        text = f"📂 **नाम:** {f['name']}\n💾 **साइज:** {size_mb} MB"
-        buttons = [[types.InlineKeyboardButton("📥 फाइल प्राप्त करें (लिंक)", callback_data=str(f['_id']))]]
+        text = f"📂 **{f['name']}**\n💾 **साइज:** {size_mb} MB"
+        buttons = [[types.InlineKeyboardButton("📥 फाइल प्राप्त करें", callback_data=str(f['_id']))]]
         
-        # यहाँ सुरक्षित तरीके से फोटो/टेक्स्ट भेजा जा रहा है
         try:
             if f.get("thumb_id"):
-                # थंबनेल को फोटो की तरह भेजने के बजाय सुरक्षित तरीके से भेजें
-                await client.send_photo(message.chat.id, f['thumb_id'], caption=text, reply_markup=types.InlineKeyboardMarkup(buttons))
+                await client.send_photo(
+                    message.chat.id, 
+                    f['thumb_id'], 
+                    caption=text, 
+                    reply_markup=types.InlineKeyboardMarkup(buttons)
+                )
             else:
                 await message.reply(text, reply_markup=types.InlineKeyboardMarkup(buttons))
         except Exception:
-            # अगर एरर आए, तो बिना थंबनेल के टेक्स्ट भेजें
             await message.reply(text, reply_markup=types.InlineKeyboardMarkup(buttons))
 
+# फाइल भेजने वाला सिस्टम (Callback Query)
 @app.on_callback_query()
 async def callback(client, query):
     user_id = query.from_user.id
     
+    # वेरिफिकेशन चेक
     if not await is_verified(user_id):
         short_link = await get_shortlink(f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}")
         buttons = [[types.InlineKeyboardButton("🔗 वेरीफाई करें", url=short_link)]]
@@ -67,26 +85,30 @@ async def callback(client, query):
     status_msg = await query.message.reply("⏳ **फाइल भेजी जा रही है...**")
     
     try:
-        # सीधे वीडियो भेजें (क्योंकि आपने कहा था आप वीडियो ही अपलोड करते हैं)
-        msg = await client.send_video(query.message.chat.id, file_doc['file_id'])
+        # वीडियो भेजने का सुरक्षित तरीका
+        sent = await client.send_video(query.message.chat.id, file_doc['file_id'])
         await status_msg.delete()
-            
-        # डिलीट टाइमर
+        
+        # ऑटो-डिलीट लॉजिक (निर्धारित समय के बाद)
         await asyncio.sleep(FILE_DELETE_TIME)
-        try: await msg.delete()
-        except: pass
+        try:
+            await sent.delete()
+        except Exception:
+            pass
+            
     except FloodWait as e:
-        await status_msg.edit(f"⏳ **लिमिट:** {e.value} सेकंड प्रतीक्षा करें।")
+        await asyncio.sleep(e.value)
     except Exception as e:
         await status_msg.edit(f"❌ **एरर:** {str(e)[:50]}")
 
+# ऑटो इंडेक्सिंग (चैनल से फाइल उठाना)
 @app.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video))
 async def index_files(client, message):
     file_info = await get_file_info(message)
     if file_info:
         await add_file(file_info)
-        await send_log(client, f"✅ **नई फाइल इंडेक्स हुई:**\n📂 {file_info['name']}")
 
+# वेब सर्वर स्टार्ट (रेंडर के लिए)
 async def start_web():
     app_web = web.Application()
     app_web.router.add_get('/', lambda r: web.Response(text="Bot is running"))
@@ -98,7 +120,7 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.create_task(start_web())
     app.start()
-    loop.run_until_complete(create_indexes())
-    loop.run_until_complete(send_log(app, "🚀 **बोट ऑनलाइन है!**"))
+    print("🚀 बोट सफलतापूर्वक ऑनलाइन है!")
     idle()
-    
+
+
