@@ -7,6 +7,13 @@ from config import DATABASE_URI, DATABASE_NAME, ADMIN_IDS, VERIFY_EXPIRE_TIME
 client = AsyncIOMotorClient(DATABASE_URI)
 db = client[DATABASE_NAME]
 
+# बोट स्टार्ट होते ही इंडेक्स बना दें ताकि सर्च हमेशा बिजली की रफ्तार से हो
+async def create_indexes():
+    # यह डेटाबेस सर्च को बहुत फास्ट कर देगा
+    await db.files.create_index("file_id")
+    await db.files.create_index("name") # सर्च के लिए नाम पर इंडेक्स
+    await db.users.create_index("user_id")
+
 # 1. वेरिफिकेशन चेक करें
 async def is_verified(user_id):
     if user_id in ADMIN_IDS: return True
@@ -22,9 +29,9 @@ async def set_verify(user_id):
         upsert=True
     )
 
-# 3. फाइल इंडेक्स (सेव) करें
+# 3. फाइल इंडेक्स (सेव) करें - अपडेटेड
 async def add_file(file_data):
-    # 'upsert=True' का उपयोग डेटा को अपडेट या नया इंसर्ट करने के लिए होता है
+    # यह फाइल की जानकारी सेव/अपडेट करेगा
     await db.files.update_one(
         {"file_id": file_data["file_id"]},
         {"$set": {
@@ -51,7 +58,7 @@ async def get_user_data(user_id):
 # 6. फाइल ढूंढना (ObjectId या file_id दोनों के लिए)
 async def get_file_by_id(file_id_str):
     try:
-        # अगर यह ObjectId है तो उसे ढूँढे
+        # अगर बटन से आया ObjectId है तो उसे ढूँढे
         return await db.files.find_one({"_id": ObjectId(file_id_str)})
     except:
         # अगर वह ObjectId नहीं है, तो file_id के आधार पर ढूँढे
