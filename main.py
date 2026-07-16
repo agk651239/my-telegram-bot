@@ -62,17 +62,17 @@ async def callback(client, query):
     # स्टेटस मैसेज
     status_msg = await query.message.reply("⏳ **फाइल आ रही है, कृपया प्रतीक्षा करें...**")
     
-    # फाइल भेजने का लॉजिक (वीडियो या डॉक्यूमेंट चेक करके)
+    # फाइल भेजने का लॉजिक (thumb_id के आधार पर वीडियो या डॉक्यूमेंट पहचानें)
     try:
-        msg = await client.send_video(query.message.chat.id, file_doc['file_id'])
-        await status_msg.edit("✅ **वीडियो सफलतापूर्वक भेजा गया!**")
-    except:
-        try:
+        if file_doc.get("thumb_id"):
+            msg = await client.send_video(query.message.chat.id, file_doc['file_id'])
+            await status_msg.edit("✅ **वीडियो सफलतापूर्वक भेजा गया!**")
+        else:
             msg = await client.send_document(query.message.chat.id, file_doc['file_id'])
             await status_msg.edit("✅ **डॉक्यूमेंट सफलतापूर्वक भेजा गया!**")
-        except Exception as e:
-            await status_msg.edit(f"❌ **फाइल भेजने में एरर आया:** {e}")
-            return
+    except Exception as e:
+        await status_msg.edit(f"❌ **फाइल भेजने में एरर आया:** {str(e)[:50]}")
+        return
             
     # डिलीट टाइमर
     await asyncio.sleep(FILE_DELETE_TIME)
@@ -83,13 +83,12 @@ async def callback(client, query):
 
 @app.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video))
 async def index_files(client, message):
-    # फाइल info निकालना
     file_info = await get_file_info(message)
-    await add_file(file_info)
-    
-    # फाइल इंडेक्सिंग का लॉग
-    log_text = f"✅ **नई फाइल इंडेक्स हुई:**\n📂 **नाम:** {file_info['name']}\n💾 **साइज:** {round(file_info['file_size'] / (1024 * 1024), 2)} MB"
-    await send_log(client, log_text)
+    if file_info:
+        await add_file(file_info)
+        # फाइल इंडेक्सिंग का लॉग
+        log_text = f"✅ **नई फाइल इंडेक्स हुई:**\n📂 **नाम:** {file_info['name']}\n💾 **साइज:** {round(file_info['file_size'] / (1024 * 1024), 2)} MB"
+        await send_log(client, log_text)
 
 async def start_web():
     app_web = web.Application()
@@ -104,6 +103,7 @@ if __name__ == "__main__":
     
     app.start()
     # बोट ऑनलाइन का लॉग
+    loop.run_until_complete(create_indexes()) # इंडेक्सिंग शुरू करें
     loop.run_until_complete(send_log(app, "🚀 **बोट सफलतापूर्वक ऑनलाइन हो गया है!**"))
     app.idle()
     
