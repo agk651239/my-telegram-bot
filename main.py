@@ -31,7 +31,7 @@ async def auto_search(client, message):
     files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=5)
     
     if not files: 
-        await message.reply("कोई फाइल नहीं मिली।")
+        await message.reply("❌ कोई फाइल नहीं मिली।")
         return
     
     for f in files:
@@ -59,28 +59,37 @@ async def callback(client, query):
         await query.answer("फाइल मौजूद नहीं है।", show_alert=True)
         return
 
-    # वीडियो या डॉक्यूमेंट के हिसाब से भेजें
+    # स्टेटस मैसेज
+    status_msg = await query.message.reply("⏳ **फाइल आ रही है, कृपया प्रतीक्षा करें...**")
+    
+    # फाइल भेजने का लॉजिक (वीडियो या डॉक्यूमेंट चेक करके)
     try:
         msg = await client.send_video(query.message.chat.id, file_doc['file_id'])
+        await status_msg.edit("✅ **वीडियो सफलतापूर्वक भेजा गया!**")
     except:
-        msg = await client.send_document(query.message.chat.id, file_doc['file_id'])
+        try:
+            msg = await client.send_document(query.message.chat.id, file_doc['file_id'])
+            await status_msg.edit("✅ **डॉक्यूमेंट सफलतापूर्वक भेजा गया!**")
+        except Exception as e:
+            await status_msg.edit(f"❌ **फाइल भेजने में एरर आया:** {e}")
+            return
             
+    # डिलीट टाइमर
     await asyncio.sleep(FILE_DELETE_TIME)
-    try: await msg.delete()
+    try: 
+        await msg.delete()
+        await status_msg.delete()
     except: pass
 
 @app.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video))
 async def index_files(client, message):
-    media = message.document or message.video
-    file_info = {
-        "name": message.caption or media.file_name or "File",
-        "file_id": media.file_id,
-        "file_size": media.file_size,
-        "thumb_id": media.thumbs[0].file_id if media.thumbs else None
-    }
+    # फाइल info निकालना
+    file_info = await get_file_info(message)
     await add_file(file_info)
+    
     # फाइल इंडेक्सिंग का लॉग
-    await send_log(client, f"✅ **नई फाइल इंडेक्स हुई:**\n📂 {file_info['name']}")
+    log_text = f"✅ **नई फाइल इंडेक्स हुई:**\n📂 **नाम:** {file_info['name']}\n💾 **साइज:** {round(file_info['file_size'] / (1024 * 1024), 2)} MB"
+    await send_log(client, log_text)
 
 async def start_web():
     app_web = web.Application()
@@ -92,6 +101,7 @@ async def start_web():
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.create_task(start_web())
+    
     app.start()
     # बोट ऑनलाइन का लॉग
     loop.run_until_complete(send_log(app, "🚀 **बोट सफलतापूर्वक ऑनलाइन हो गया है!**"))
