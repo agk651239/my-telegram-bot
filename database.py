@@ -22,9 +22,9 @@ async def set_verify(user_id):
         upsert=True
     )
 
-# 3. फाइल इंडेक्स (सेव) करें - अपडेटेड (size और thumb के लिए)
+# 3. फाइल इंडेक्स (सेव) करें
 async def add_file(file_data):
-    # अब यह file_size और thumb_id को भी अपडेट करेगा
+    # 'upsert=True' का उपयोग डेटा को अपडेट या नया इंसर्ट करने के लिए होता है
     await db.files.update_one(
         {"file_id": file_data["file_id"]},
         {"$set": {
@@ -48,12 +48,12 @@ async def add_user(user_id):
 async def get_user_data(user_id):
     return await db.users.find_one({"user_id": user_id})
 
-# 6. फाइल ढूंढना (ObjectId के लिए)
+# 6. फाइल ढूंढना (ObjectId या file_id दोनों के लिए)
 async def get_file_by_id(file_id_str):
     try:
-        # callback_data में हम ObjectId स्ट्रिंग भेज रहे हैं, इसलिए यह बेस्ट है
+        # अगर यह ObjectId है तो उसे ढूँढे
         return await db.files.find_one({"_id": ObjectId(file_id_str)})
     except:
-        # अगर कोई गलती होती है, तो सादी ID से चेक करें
+        # अगर वह ObjectId नहीं है, तो file_id के आधार पर ढूँढे
         return await db.files.find_one({"file_id": file_id_str})
         
