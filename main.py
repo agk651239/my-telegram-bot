@@ -4,7 +4,7 @@ import asyncio
 import logging
 
 from config import *
-from database import *
+from database import * # यहाँ create_indexes भी इम्पोर्ट हो गया है
 from helpers import *
 from aiohttp import web
 
@@ -30,7 +30,6 @@ async def start(client, message):
             try:
                 await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
             except:
-                # यहाँ चैनल का नाम या लिंक सही से डालें
                 btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें", url=f"https://t.me/{BOT_USERNAME}")]]
                 await message.reply("⚠️ **फाइल पाने के लिए पहले चैनल जॉइन करें!**", reply_markup=types.InlineKeyboardMarkup(btn))
                 return
@@ -46,7 +45,6 @@ async def start(client, message):
         file_doc = await get_file_by_id(file_id)
         if file_doc:
             try:
-                # यहाँ हमने ID को int में बदल दिया है ताकि कोई एरर न आए
                 await client.copy_message(
                     chat_id=message.chat.id, 
                     from_chat_id=DATABASE_CHANNEL, 
@@ -64,7 +62,7 @@ async def start(client, message):
         await message.reply("✅ **वेरिफिकेशन सफल!** अब आप 24 घंटे तक फाइलें डाउनलोड कर सकते हैं।")
         return
         
-    await message.reply("बोट चालू है! सर्च करने के लिए एडमिन को मैसेज करें या फाइल सर्च करें।")
+    await message.reply("बोट चालू है! सर्च करने के लिए फाइल का नाम लिखें।")
 
 # ऑटो-सर्च (Admin)
 @app.on_message(filters.text & ~filters.command(["start"]) & filters.user(ADMIN_IDS))
@@ -101,9 +99,15 @@ async def start_web():
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
+    
+    # यह लाइन सबसे महत्वपूर्ण है - इंडेक्स तैयार करना
+    loop.run_until_complete(create_indexes())
+    
     loop.create_task(start_web())
     app.start()
+    
     try: app.send_message(LOG_CHANNEL, "🚀 **बोट ऑनलाइन है!**")
     except: pass
+    
     idle()
     
