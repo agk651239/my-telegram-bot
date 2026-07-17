@@ -2,37 +2,47 @@ from pyrogram import Client, filters, types, idle
 from pyrogram.errors import FloodWait
 import asyncio
 import logging
+
 from config import *
 from database import *
 from helpers import *
 from aiohttp import web
 
-# बोट का क्लाइंट सेटअप
-app = Client("bot_session", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+# बोट का मुख्य क्लाइंट सेटअप
+app = Client(
+    "bot_session", 
+    api_id=API_ID, 
+    api_hash=API_HASH, 
+    bot_token=BOT_TOKEN
+)
 
-# 1. स्टार्ट कमांड (Verification Logic + Unique Link Handler)
+# स्टार्ट कमांड (इसमें वेरिफिकेशन, यूनिक लिंक और फोर्स सबस्क्रिप्शन अपडेट किया गया है)
 @app.on_message(filters.command("start"))
 async def start(client, message):
     user_id = message.from_user.id
     await add_user(user_id)
     
-    # यदि लिंक में फाइल आईडी है
+    # 1. यूनिक लिंक (getfile_) हैंडलर
     if "getfile_" in message.text:
         file_id = message.text.split("getfile_")[1]
         
-        # वेरिफिकेशन चेक (Shortener के साथ)
+        # फोर्स सबस्क्रिप्शन चेक (अगर चैनल सेट है)
+        if FORCE_SUB_CHANNEL:
+            try:
+                await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
+            except:
+                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें", url=f"https://t.me/{BOT_USERNAME}")]] # यहाँ अपना चैनल लिंक जोड़ें
+                await message.reply("⚠️ **फाइल पाने के लिए पहले चैनल जॉइन करें!**", reply_markup=types.InlineKeyboardMarkup(btn))
+                return
+
+        # 24 घंटे का वेरिफिकेशन चेक
         if not await is_verified(user_id):
-            verify_url = f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}"
-            short_link = await get_shortlink(verify_url)
-            buttons = [[types.InlineKeyboardButton("🔗 वेरीफाई करें (Shortener)", url=short_link)]]
-            await message.reply(
-                "⚠️ **वीडियो प्राप्त करने के लिए पहले वेरीफाई करें!**\n\n"
-                "वेरिफिकेशन केवल **24 घंटे** के लिए मान्य होता है।", 
-                reply_markup=types.InlineKeyboardMarkup(buttons)
-            )
+            short_link = await get_shortlink(f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}")
+            buttons = [[types.InlineKeyboardButton("🔗 वेरीफाई करें (24 घंटे)", url=short_link)]]
+            await message.reply("⚠️ **फाइल पाने के लिए 24 घंटे में एक बार वेरिफिकेशन जरूरी है:**", reply_markup=types.InlineKeyboardMarkup(buttons))
             return
         
-        # यदि वेरीफाइड है, तो सीधे फाइल भेजें
+        # फाइल भेजें
         file_doc = await get_file_by_id(file_id)
         if file_doc:
             await client.copy_message(message.chat.id, DATABASE_CHANNEL, file_doc['message_id'])
@@ -40,19 +50,15 @@ async def start(client, message):
             await message.reply("❌ फाइल मौजूद नहीं है।")
         return
 
-    # वेरिफिकेशन सक्सेस हैंडलर
+    # वेरिफिकेशन सक्सेस कमांड
     if "verify_" in message.text:
         await set_verify(user_id)
-        await message.reply(
-            "✅ **वेरिफिकेशन सफल!**\n\n"
-            "अब आप अगले **24 घंटों** तक किसी भी फाइल का डायरेक्ट लिंक इस्तेमाल कर सकते हैं।\n"
-            "समय पूरा होने के बाद आपको दोबारा वेरीफाई करना होगा।"
-        )
+        await message.reply("✅ **वेरिफिकेशन सफल!** अब आप 24 घंटे तक फाइलें डाउनलोड कर सकते हैं।")
         return
         
     await message.reply("बोट चालू है! मूवी या फाइल का नाम लिखकर सर्च करें।")
 
-# 2. ऑटो-सर्च (Admin के लिए Unique Link Generator)
+# ऑटो-सर्च (Admin के लिए यूनिक लिंक जेनरेटर)
 @app.on_message(filters.text & ~filters.command(["start"]) & filters.user(ADMIN_IDS))
 async def auto_search(client, message):
     query = message.text
@@ -64,29 +70,22 @@ async def auto_search(client, message):
         
     for f in files:
         size_mb = round(f.get("file_size", 0) / (1024 * 1024), 2)
+        # यूनिक लिंक का उपयोग
         unique_link = f"https://t.me/{BOT_USERNAME}?start=getfile_{f['_id']}"
-        text = f"📂 **{f['name']}**\n💾 **साइज:** {size_mb} MB\n\n🔗 **डायरेक्ट लिंक:** `{unique_link}`"
-        
+        text = f"📂 **{f['name']}**\n💾 **साइज:** {size_mb} MB\n\n🔗 **लिंक:** `{unique_link}`"
         await message.reply(text)
 
-# 3. ऑटो इंडेक्सिंग (फाइल अपलोड नोटिफिकेशन के साथ)
+# ऑटो इंडेक्सिंग (सक्सेसफुल अपलोड नोटिफिकेशन के साथ)
 @app.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video))
 async def index_files(client, message):
     file_info = await get_file_info(message)
     if file_info:
         await add_file(file_info)
-        # अपलोड सक्सेस नोटिफिकेशन
         try:
-            await client.send_message(
-                LOG_CHANNEL, 
-                f"✅ **फाइल/वीडियो सफलतापूर्वक अपलोड हो गई!**\n\n"
-                f"📂 **नाम:** {file_info['name']}\n"
-                f"💾 **साइज:** {round(file_info['file_size']/(1024*1024), 2)} MB"
-            )
-        except Exception as e:
-            print(f"Log Error: {e}")
+            await client.send_message(LOG_CHANNEL, f"✅ **योर फाइल/वीडियो सफलतापूर्वक अपलोड हो गई!**\n📂 {file_info['name']}")
+        except: pass
 
-# 4. वेब सर्वर और स्टार्ट अप नोटिफिकेशन
+# वेब सर्वर स्टार्ट
 async def start_web():
     app_web = web.Application()
     app_web.router.add_get('/', lambda r: web.Response(text="Bot is running"))
@@ -101,10 +100,9 @@ if __name__ == "__main__":
     
     # बोट स्टार्ट नोटिफिकेशन
     try:
-        app.send_message(LOG_CHANNEL, "🚀 **बोट सफलतापूर्वक स्टार्ट हो गया है!**\n\n✅ बोट कनेक्टेड और रनिंग है।")
-    except:
-        pass
-        
+        app.send_message(LOG_CHANNEL, "🚀 **योर बोट इज कनेक्टेड एंड रनिंग!**")
+    except: pass
+    
     print("🚀 बोट सफलतापूर्वक ऑनलाइन है!")
     idle()
     
