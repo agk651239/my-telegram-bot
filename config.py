@@ -25,9 +25,6 @@ FORCE_SUB_CHANNEL = int(force_sub_raw) if force_sub_raw else None
 SHORTENER_API = os.environ.get("SHORTENER_API", "")
 SHORTENER_WEBSITE = os.environ.get("SHORTENER_WEBSITE", "")
 
-# Video Link Setting (Render dashboard mein VIDEO_LINK naam ka variable add karein)
-VIDEO_LINK = os.environ.get("VIDEO_LINK", "https://t.me/your_channel_link")
-
 # Server Port
 PORT = int(os.environ.get("PORT", 10000))
 
