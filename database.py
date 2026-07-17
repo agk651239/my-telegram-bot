@@ -56,7 +56,7 @@ async def add_file(d):
     if not d or "file_id" not in d: 
         return
     try:
-        # यहाँ हम upsert का उपयोग कर रहे हैं ताकि फाइल बार-बार अपडेट न हो अगर पहले से है
+        # main.py से आने वाले message_id को सुरक्षित तरीके से सेव करना
         await db.files.update_one(
             {"file_id": d["file_id"]}, 
             {"$set": {
@@ -84,11 +84,10 @@ async def add_user(user_id):
 # फाइल को आईडी या _id से ढूंढना (Unique Link के लिए)
 async def get_file_by_id(fid):
     try:
-        # यहाँ ObjectId का सही चेक लगाया है ताकि एरर न आए
+        # अगर fid एक वैध ObjectId है, तो उससे सर्च करें, वरना file_id से
         if ObjectId.is_valid(fid):
             return await db.files.find_one({"_id": ObjectId(fid)})
-        else:
-            return await db.files.find_one({"file_id": fid})
+        return await db.files.find_one({"file_id": fid})
     except Exception as e:
         logger.error(f"❌ फाइल फेच एरर: {e}")
         return None
