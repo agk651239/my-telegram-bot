@@ -17,13 +17,16 @@ ADMIN_IDS = [int(x) for x in admin_ids_raw.split(",")] if admin_ids_raw else []
 DATABASE_CHANNEL = int(os.environ.get("DATABASE_CHANNEL", 0))
 LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", 0))
 
-# FORCE_SUB_CHANNEL को int में बदला गया (अगर सेट है)
+# FORCE_SUB_CHANNEL
 force_sub_raw = os.environ.get("FORCE_SUB_CHANNEL", None)
 FORCE_SUB_CHANNEL = int(force_sub_raw) if force_sub_raw else None
 
 # Shortener Settings
 SHORTENER_API = os.environ.get("SHORTENER_API", "")
 SHORTENER_WEBSITE = os.environ.get("SHORTENER_WEBSITE", "")
+
+# Video Link Setting (Render dashboard mein VIDEO_LINK naam ka variable add karein)
+VIDEO_LINK = os.environ.get("VIDEO_LINK", "https://t.me/your_channel_link")
 
 # Server Port
 PORT = int(os.environ.get("PORT", 10000))
