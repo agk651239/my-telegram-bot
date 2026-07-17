@@ -15,7 +15,7 @@ try:
 except Exception as e:
     logger.error(f"❌ डेटाबेस कनेक्शन एरर: {e}")
 
-# इंडेक्स बनाना (डेटाबेस सर्च तेज करने के लिए)
+# इंडेक्स बनाना
 async def create_indexes():
     try:
         await db.files.create_index("file_id", unique=True)
@@ -35,7 +35,7 @@ async def is_verified(user_id):
     except Exception: 
         return False
 
-# वेरिफिकेशन सेट करना (24 घंटे का समय)
+# वेरिफिकेशन सेट करना
 async def set_verify(user_id):
     try:
         expire_time = time.time() + VERIFY_EXPIRE_TIME
@@ -47,7 +47,7 @@ async def set_verify(user_id):
     except Exception as e: 
         logger.error(f"❌ वेरिफिकेशन एरर: {e}")
 
-# फाइल को डेटाबेस में जोड़ना
+# फाइल को डेटाबेस में जोड़ना (message_id add kiya gaya hai)
 async def add_file(d):
     if not d or "file_id" not in d: 
         return
@@ -58,7 +58,8 @@ async def add_file(d):
                 "name": d["name"], 
                 "file_size": d.get("file_size", 0), 
                 "thumb_id": d.get("thumb_id"), 
-                "file_id": d["file_id"]
+                "file_id": d["file_id"],
+                "message_id": d.get("message_id") # Yeh zaroori hai copy_message ke liye
             }}, 
             upsert=True
         )
@@ -75,13 +76,6 @@ async def add_user(user_id):
         )
     except Exception as e: 
         logger.error(f"❌ यूजर ऐड एरर: {e}")
-
-# यूजर का डेटा प्राप्त करना
-async def get_user_data(user_id):
-    try: 
-        return await db.users.find_one({"user_id": user_id})
-    except Exception: 
-        return None
 
 # फाइल को आईडी से ढूंढना
 async def get_file_by_id(fid):
