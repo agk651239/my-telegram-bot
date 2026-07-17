@@ -15,13 +15,23 @@ try:
 except Exception as e:
     logger.error(f"❌ डेटाबेस कनेक्शन एरर: {e}")
 
+# इंडेक्स बनाना (बोट की सर्चिंग स्पीड बढ़ाने के लिए जरूरी है)
+async def create_indexes():
+    try:
+        await db.files.create_index("file_id", unique=True)
+        await db.files.create_index("name")
+        await db.users.create_index("user_id", unique=True)
+        logger.info("✅ डेटाबेस इंडेक्स तैयार हैं।")
+    except Exception as e:
+        logger.error(f"❌ इंडेक्स क्रिएशन एरर: {e}")
+
 # वेरिफिकेशन चेक करना (24 घंटे वाला लॉजिक)
 async def is_verified(user_id):
     if user_id in ADMIN_IDS: 
         return True
     try:
         user = await db.users.find_one({"user_id": user_id})
-        # यहाँ हमने जाँच की है कि क्या एक्सपायरी टाइम वर्तमान समय से ज्यादा है
+        # अगर यूजर डेटाबेस में है और expire_at अभी के समय से ज्यादा है
         if user and user.get("expire_at"):
             return user["expire_at"] > time.time()
         return False
@@ -32,7 +42,6 @@ async def is_verified(user_id):
 # वेरिफिकेशन सेट करना (24 घंटे का समय जोड़ने के लिए)
 async def set_verify(user_id):
     try:
-        # VERIFY_EXPIRE_TIME को config.py में 86400 (24 घंटे) सेट रखें
         expire_time = time.time() + VERIFY_EXPIRE_TIME
         await db.users.update_one(
             {"user_id": user_id}, 
@@ -54,7 +63,7 @@ async def add_file(d):
                 "file_size": d.get("file_size", 0), 
                 "thumb_id": d.get("thumb_id"), 
                 "file_id": d["file_id"],
-                "message_id": d.get("message_id") # copy_message के लिए अनिवार्य
+                "message_id": d.get("message_id")
             }}, 
             upsert=True
         )
@@ -72,10 +81,10 @@ async def add_user(user_id):
     except Exception as e: 
         logger.error(f"❌ यूजर ऐड एरर: {e}")
 
-# फाइल को आईडी या _id से ढूंढना
+# फाइल को आईडी या _id से ढूंढना (Unique Link के लिए)
 async def get_file_by_id(fid):
     try:
-        # यहाँ ObjectId का सही उपयोग किया गया है ताकि सर्च और डायरेक्ट लिंक दोनों काम करें
+        # यहाँ ObjectId का उपयोग किया गया है ताकि लिंक से डायरेक्ट फाइल मिल सके
         query = {"_id": ObjectId(fid)} if ObjectId.is_valid(fid) else {"file_id": fid}
         return await db.files.find_one(query)
     except Exception as e:
