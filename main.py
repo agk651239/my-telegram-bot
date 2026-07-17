@@ -16,7 +16,6 @@ app = Client(
     bot_token=BOT_TOKEN
 )
 
-# स्टार्ट कमांड (इसमें वेरिफिकेशन, यूनिक लिंक और फोर्स सबस्क्रिप्शन अपडेट किया गया है)
 @app.on_message(filters.command("start"))
 async def start(client, message):
     user_id = message.from_user.id
@@ -26,12 +25,13 @@ async def start(client, message):
     if "getfile_" in message.text:
         file_id = message.text.split("getfile_")[1]
         
-        # फोर्स सबस्क्रिप्शन चेक (अगर चैनल सेट है)
+        # फोर्स सबस्क्रिप्शन चेक
         if FORCE_SUB_CHANNEL:
             try:
                 await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
             except:
-                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें", url=f"https://t.me/{BOT_USERNAME}")]] # यहाँ अपना चैनल लिंक जोड़ें
+                # यहाँ चैनल का नाम या लिंक सही से डालें
+                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें", url=f"https://t.me/{BOT_USERNAME}")]]
                 await message.reply("⚠️ **फाइल पाने के लिए पहले चैनल जॉइन करें!**", reply_markup=types.InlineKeyboardMarkup(btn))
                 return
 
@@ -45,9 +45,17 @@ async def start(client, message):
         # फाइल भेजें
         file_doc = await get_file_by_id(file_id)
         if file_doc:
-            await client.copy_message(message.chat.id, DATABASE_CHANNEL, file_doc['message_id'])
+            try:
+                # यहाँ हमने ID को int में बदल दिया है ताकि कोई एरर न आए
+                await client.copy_message(
+                    chat_id=message.chat.id, 
+                    from_chat_id=DATABASE_CHANNEL, 
+                    message_id=int(file_doc['message_id'])
+                )
+            except Exception as e:
+                await message.reply(f"❌ फाइल भेजने में एरर आया: {e}")
         else:
-            await message.reply("❌ फाइल मौजूद नहीं है।")
+            await message.reply("❌ फाइल डेटाबेस में मौजूद नहीं है।")
         return
 
     # वेरिफिकेशन सक्सेस कमांड
@@ -56,9 +64,9 @@ async def start(client, message):
         await message.reply("✅ **वेरिफिकेशन सफल!** अब आप 24 घंटे तक फाइलें डाउनलोड कर सकते हैं।")
         return
         
-    await message.reply("बोट चालू है! मूवी या फाइल का नाम लिखकर सर्च करें।")
+    await message.reply("बोट चालू है! सर्च करने के लिए एडमिन को मैसेज करें या फाइल सर्च करें।")
 
-# ऑटो-सर्च (Admin के लिए यूनिक लिंक जेनरेटर)
+# ऑटो-सर्च (Admin)
 @app.on_message(filters.text & ~filters.command(["start"]) & filters.user(ADMIN_IDS))
 async def auto_search(client, message):
     query = message.text
@@ -70,22 +78,20 @@ async def auto_search(client, message):
         
     for f in files:
         size_mb = round(f.get("file_size", 0) / (1024 * 1024), 2)
-        # यूनिक लिंक का उपयोग
         unique_link = f"https://t.me/{BOT_USERNAME}?start=getfile_{f['_id']}"
         text = f"📂 **{f['name']}**\n💾 **साइज:** {size_mb} MB\n\n🔗 **लिंक:** `{unique_link}`"
         await message.reply(text)
 
-# ऑटो इंडेक्सिंग (सक्सेसफुल अपलोड नोटिफिकेशन के साथ)
+# ऑटो इंडेक्सिंग
 @app.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video))
 async def index_files(client, message):
     file_info = await get_file_info(message)
     if file_info:
         await add_file(file_info)
         try:
-            await client.send_message(LOG_CHANNEL, f"✅ **योर फाइल/वीडियो सफलतापूर्वक अपलोड हो गई!**\n📂 {file_info['name']}")
+            await client.send_message(LOG_CHANNEL, f"✅ **सफलतापूर्वक इंडेक्स हुआ:**\n📂 {file_info['name']}")
         except: pass
 
-# वेब सर्वर स्टार्ट
 async def start_web():
     app_web = web.Application()
     app_web.router.add_get('/', lambda r: web.Response(text="Bot is running"))
@@ -97,12 +103,7 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.create_task(start_web())
     app.start()
-    
-    # बोट स्टार्ट नोटिफिकेशन
-    try:
-        app.send_message(LOG_CHANNEL, "🚀 **योर बोट इज कनेक्टेड एंड रनिंग!**")
+    try: app.send_message(LOG_CHANNEL, "🚀 **बोट ऑनलाइन है!**")
     except: pass
-    
-    print("🚀 बोट सफलतापूर्वक ऑनलाइन है!")
     idle()
     
