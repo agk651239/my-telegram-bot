@@ -18,7 +18,6 @@ async def get_shortlink(url: str) -> str:
     
     try:
         async with aiohttp.ClientSession() as session:
-            # API के साथ कनेक्शन बनाना
             async with session.get(
                 f"{SHORTENER_WEBSITE}/api", 
                 params={"api": SHORTENER_API, "url": url}, 
@@ -27,7 +26,6 @@ async def get_shortlink(url: str) -> str:
                 
                 if response.status == 200:
                     data = await response.json()
-                    # अलग-अलग शॉर्टनर वेबसाइटों के रेस्पोंस फॉर्मेट को हैंडल करना
                     shortened = data.get("shortenedUrl") or data.get("shorturl") or data.get("link")
                     return shortened if shortened else url
                 else:
@@ -41,18 +39,18 @@ async def get_shortlink(url: str) -> str:
 # 2. फाइल की जानकारी (इंडेक्सिंग के लिए)
 async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     """
-    Telegram मैसेज से फाइल डिटेल्स सुरक्षित तरीके से निकालता है।
+    Telegram मैसेज से फाइल डिटेल्स और message_id निकालता है।
     """
-    # सपोर्टेड फाइल टाइप्स की जांच
-    file = message.document or message.video or message.audio or message.photo
+    # सपोर्टेड फाइल टाइप्स
+    file = message.document or message.video or message.audio
     
     if not file:
         return None
     
-    # फाइल का नाम: अगर कैप्शन न हो, तो फाइल का नाम लें, वरना 'Unnamed' लिखें
+    # फाइल का नाम
     file_name = (message.caption or getattr(file, "file_name", "Unnamed_File")).strip()
     
-    # थंबनेल का ID सुरक्षित तरीके से निकालना (वीडियो/डॉक्यूमेंट से)
+    # थंबनेल का ID
     thumb_id = None
     if hasattr(file, "thumbs") and file.thumbs:
         thumb_id = file.thumbs[0].file_id
@@ -63,6 +61,7 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
         "file_id": file.file_id,
         "name": file_name,
         "file_size": getattr(file, "file_size", 0),
-        "thumb_id": thumb_id
+        "thumb_id": thumb_id,
+        "message_id": message.id  # Yeh line copy_message ke liye zaroori hai
     }
     
