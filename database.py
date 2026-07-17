@@ -15,29 +15,24 @@ try:
 except Exception as e:
     logger.error(f"❌ डेटाबेस कनेक्शन एरर: {e}")
 
-# इंडेक्स बनाना
-async def create_indexes():
-    try:
-        await db.files.create_index("file_id", unique=True)
-        await db.files.create_index("name")
-        await db.users.create_index("user_id", unique=True)
-        logger.info("✅ डेटाबेस इंडेक्स तैयार हैं।")
-    except Exception as e:
-        logger.error(f"❌ इंडेक्स क्रिएशन एरर: {e}")
-
-# वेरिफिकेशन चेक करना
+# वेरिफिकेशन चेक करना (24 घंटे वाला लॉजिक)
 async def is_verified(user_id):
     if user_id in ADMIN_IDS: 
         return True
     try:
         user = await db.users.find_one({"user_id": user_id})
-        return user is not None and user.get("expire_at", 0) > time.time()
-    except Exception: 
+        # यहाँ हमने जाँच की है कि क्या एक्सपायरी टाइम वर्तमान समय से ज्यादा है
+        if user and user.get("expire_at"):
+            return user["expire_at"] > time.time()
+        return False
+    except Exception as e: 
+        logger.error(f"❌ वेरिफिकेशन चेक एरर: {e}")
         return False
 
-# वेरिफिकेशन सेट करना
+# वेरिफिकेशन सेट करना (24 घंटे का समय जोड़ने के लिए)
 async def set_verify(user_id):
     try:
+        # VERIFY_EXPIRE_TIME को config.py में 86400 (24 घंटे) सेट रखें
         expire_time = time.time() + VERIFY_EXPIRE_TIME
         await db.users.update_one(
             {"user_id": user_id}, 
@@ -45,9 +40,9 @@ async def set_verify(user_id):
             upsert=True
         )
     except Exception as e: 
-        logger.error(f"❌ वेरिफिकेशन एरर: {e}")
+        logger.error(f"❌ वेरिफिकेशन सेट करने में एरर: {e}")
 
-# फाइल को डेटाबेस में जोड़ना (message_id add kiya gaya hai)
+# फाइल को डेटाबेस में जोड़ना (message_id के साथ)
 async def add_file(d):
     if not d or "file_id" not in d: 
         return
@@ -59,12 +54,12 @@ async def add_file(d):
                 "file_size": d.get("file_size", 0), 
                 "thumb_id": d.get("thumb_id"), 
                 "file_id": d["file_id"],
-                "message_id": d.get("message_id") # Yeh zaroori hai copy_message ke liye
+                "message_id": d.get("message_id") # copy_message के लिए अनिवार्य
             }}, 
             upsert=True
         )
     except Exception as e: 
-        logger.error(f"❌ फाइल ऐड एरर: {e}")
+        logger.error(f"❌ फाइल ऐड/इंडेक्सिंग एरर: {e}")
 
 # यूजर को डेटाबेस में जोड़ना
 async def add_user(user_id):
@@ -77,9 +72,10 @@ async def add_user(user_id):
     except Exception as e: 
         logger.error(f"❌ यूजर ऐड एरर: {e}")
 
-# फाइल को आईडी से ढूंढना
+# फाइल को आईडी या _id से ढूंढना
 async def get_file_by_id(fid):
     try:
+        # यहाँ ObjectId का सही उपयोग किया गया है ताकि सर्च और डायरेक्ट लिंक दोनों काम करें
         query = {"_id": ObjectId(fid)} if ObjectId.is_valid(fid) else {"file_id": fid}
         return await db.files.find_one(query)
     except Exception as e:
