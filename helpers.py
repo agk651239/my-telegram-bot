@@ -18,14 +18,14 @@ async def get_shortlink(url: str) -> str:
         return url
     
     try:
-        # ClientSession का सुरक्षित तरीके से उपयोग
+        # ClientSession का उपयोग करते हुए शॉर्टनर से लिंक प्राप्त करना
         async with aiohttp.ClientSession() as session:
             params = {"api": SHORTENER_API, "url": url}
-            # timeout को 10 सेकंड रखा है ताकि बोट धीमा न हो
+            # Timeout 10 सेकंड ताकि बोट हैंग न हो
             async with session.get(f"{SHORTENER_WEBSITE}/api", params=params, timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # शॉर्टनर के अलग-अलग रिस्पॉन्स फॉर्मेट हैंडल करने के लिए
+                    # शॉर्टनर के अलग-अलग रिस्पॉन्स फॉर्मेट (JSON keys) को हैंडल करना
                     shortened = data.get("shortenedUrl") or data.get("shorturl") or data.get("link")
                     return shortened if shortened else url
                 else:
@@ -38,8 +38,8 @@ async def get_shortlink(url: str) -> str:
 # 2. फाइल की जानकारी (इंडेक्सिंग के लिए)
 async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     """
-    टेलीग्राम मैसेज से फाइल डिटेल्स निकालता है।
-    इसमें message_id को सेव करना अनिवार्य है ताकि बाद में copy_message सही से काम करे।
+    टेलीग्राम मैसेज से फाइल डिटेल्स और message_id निकालता है।
+    इसे main.py में इंडेक्सिंग के लिए उपयोग किया जाता है।
     """
     # सपोर्टेड फाइल टाइप्स: document (फाइल), video (वीडियो), audio (ऑडियो)
     file = message.document or message.video or message.audio
@@ -47,8 +47,7 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     if not file:
         return None
     
-    # फाइल का नाम: caption (अगर है) या फाइल का ओरिजिनल नाम
-    # strip() का उपयोग एक्स्ट्रा स्पेस हटाने के लिए किया गया है
+    # फाइल का नाम: caption (अगर है) या फाइल का ओरिजिनल नाम, स्पेस हटाते हुए
     file_name = (message.caption or getattr(file, "file_name", "Unnamed_File")).strip()
     
     # थंबनेल का ID निकालें
@@ -63,6 +62,6 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
         "name": file_name,
         "file_size": getattr(file, "file_size", 0),
         "thumb_id": thumb_id,
-        "message_id": message.id  # यह डेटाबेस में मैसेज ID स्टोर करेगा (copy_message हेतु)
+        "message_id": message.id  # यह डेटाबेस में मैसेज ID स्टोर करेगा (copy_message हेतु अनिवार्य)
     }
     
