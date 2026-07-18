@@ -14,8 +14,8 @@ db = client[DATABASE_NAME]
 # इंडेक्स बनाना (सर्चिंग की स्पीड के लिए)
 async def create_indexes():
     try:
-        # 'name' फ़ील्ड पर टेक्स्ट इंडेक्स
-        await db.files.create_index([("name", "text")])
+        # 'name' फ़ील्ड पर टेक्स्ट इंडेक्स (सर्चिंग के लिए)
+        await db.files.create_index([("name", "text")], default_language='none')
         # file_id और user_id के लिए यूनिक इंडेक्स
         await db.files.create_index("file_id", unique=True)
         await db.users.create_index("user_id", unique=True)
@@ -48,7 +48,7 @@ async def set_verify(user_id):
     except Exception as e: 
         logger.error(f"❌ वेरिफिकेशन अपडेट एरर: {e}")
 
-# फाइल को डेटाबेस में जोड़ना (main.py के साथ सिंक)
+# फाइल को डेटाबेस में जोड़ना (Upsert के साथ)
 async def add_file(d):
     if not d or "file_id" not in d: 
         return
@@ -61,7 +61,7 @@ async def add_file(d):
                 "file_size": d.get("file_size", 0), 
                 "thumb_id": d.get("thumb_id"), 
                 "message_id": d.get("message_id"),
-                "created_at": time.time()
+                "updated_at": time.time() # updated_at जोड़ना बेहतर रहता है
             }}, 
             upsert=True
         )
@@ -71,10 +71,9 @@ async def add_file(d):
 # यूजर को डेटाबेस में जोड़ना
 async def add_user(user_id):
     try: 
-        # $setOnInsert का उपयोग ताकि पुराने डेटा पर प्रभाव न पड़े
         await db.users.update_one(
             {"user_id": user_id}, 
-            {"$setOnInsert": {"user_id": user_id}}, 
+            {"$setOnInsert": {"user_id": user_id, "created_at": time.time()}}, 
             upsert=True
         )
     except Exception as e: 
