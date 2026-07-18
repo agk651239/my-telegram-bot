@@ -15,11 +15,12 @@ try:
 except Exception as e:
     logger.error(f"❌ डेटाबेस कनेक्शन एरर: {e}")
 
-# इंडेक्स बनाना
+# इंडेक्स बनाना (सर्चिंग की स्पीड के लिए)
 async def create_indexes():
     try:
+        # name पर text index बनाना ताकि सर्चिंग बहुत फ़ास्ट हो
+        await db.files.create_index([("name", "text")])
         await db.files.create_index("file_id", unique=True)
-        await db.files.create_index("name")
         await db.users.create_index("user_id", unique=True)
         logger.info("✅ डेटाबेस इंडेक्स तैयार हैं।")
     except Exception as e:
@@ -50,19 +51,21 @@ async def set_verify(user_id):
     except Exception as e: 
         logger.error(f"❌ वेरिफिकेशन सेट करने में एरर: {e}")
 
-# फाइल को डेटाबेस में जोड़ना (Updated to include file_type)
+# फाइल को डेटाबेस में जोड़ना
 async def add_file(d):
     if not d or "file_id" not in d: 
         return
     try:
+        # अपडेट करते समय डेटा को सही से अपडेट करना
         await db.files.update_one(
             {"file_id": d["file_id"]}, 
             {"$set": {
                 "name": d["name"], 
-                "file_type": d.get("file_type"), # यह नया फील्ड सेव होगा
+                "file_type": d.get("file_type"), 
                 "file_size": d.get("file_size", 0), 
                 "thumb_id": d.get("thumb_id"), 
-                "message_id": d.get("message_id")
+                "message_id": d.get("message_id"),
+                "created_at": time.time() # कब इंडेक्स किया, यह भी जोड़ दिया
             }}, 
             upsert=True
         )
@@ -84,7 +87,9 @@ async def add_user(user_id):
 async def get_file_by_id(fid):
     try:
         if ObjectId.is_valid(fid):
+            # ObjectId से सर्च करें
             return await db.files.find_one({"_id": ObjectId(fid)})
+        # या file_id से
         return await db.files.find_one({"file_id": fid})
     except Exception as e:
         logger.error(f"❌ फाइल फेच एरर: {e}")
