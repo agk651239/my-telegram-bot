@@ -2,7 +2,6 @@ from pyrogram import Client, filters, types, idle
 import asyncio
 import aiohttp
 import logging
-import time
 from config import *
 from database import * 
 from helpers import *
@@ -150,15 +149,16 @@ async def index_files(client, message):
 @app.on_message(filters.text & ~filters.command(["start", "broadcast", "stats"]))
 async def auto_search(client, message):
     query = message.text
-    files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=20)
-    if not files: return await message.reply("❌ कोई फाइल नहीं मिली। / No file found.")
+    # डेटाबेस से फाइल सर्च करें
+    files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=5)
+    if not files: 
+        return await message.reply("❌ कोई फाइल नहीं मिली। / No file found.")
     
-    results = f"📂 **सर्च रिजल्ट: {query}**\n\n"
+    # रिजल्ट्स दिखाएं
     for f in files:
-        unique_link = f"https://t.me/{BOT_USERNAME}?start=getfile_{f['file_id']}"
-        results += f"🔹 **{f['name']}**\n🔗 `{unique_link}`\n\n"
-    
-    await message.reply(results)
+        # यहाँ f['_id'] का उपयोग किया गया है जो डेटाबेस के लिए सुरक्षित है
+        unique_link = f"https://t.me/{BOT_USERNAME}?start=getfile_{f['_id']}"
+        await message.reply(f"📂 **{f['name']}**\n🔗 `{unique_link}`")
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
@@ -169,4 +169,4 @@ if __name__ == "__main__":
     try: app.send_message(LOG_CHANNEL, "🚀 **बोट स्टार्ट हो गया है!**")
     except: pass
     idle()
-        
+    
