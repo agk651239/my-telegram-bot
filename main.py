@@ -75,7 +75,7 @@ async def start(client, message):
     
     if len(command) > 1 and "verify_" in command[1]:
         await set_verify(user_id)
-        await message.reply("✅ **वेरिफिकेशन सफल!**")
+        await message.reply("✅ **"Verification successful! Please click on the video link again to download your file.""वेरिफिकेशन सफल रहा! कृपया फाइल डाउनलोड करने के लिए वीडियो लिंक पर दोबारा क्लिक करें।"**")
         return
 
     if len(command) > 1 and "getfile_" in command[1]:
@@ -91,7 +91,7 @@ async def start(client, message):
         if user_id not in ADMIN_IDS and not await is_verified(user_id):
             short_link = await get_shortlink(f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}")
             buttons = [[types.InlineKeyboardButton("🔗 वेरीफाई करें", url=short_link)]]
-            await message.reply("⚠️ **फाइल पाने के लिए वेरिफिकेशन जरूरी है:**", reply_markup=types.InlineKeyboardMarkup(buttons))
+            await message.reply("⚠️ **"Verify once to get unlimited file access for the next 24 hours!""वेरिफिकेशन पूरा करें और अगले 24 घंटों तक असीमित (Unlimited) फाइलें डाउनलोड करें!"**", reply_markup=types.InlineKeyboardMarkup(buttons))
             return
         
         file_doc = await get_file_by_id(file_id)
