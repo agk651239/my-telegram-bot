@@ -4,7 +4,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import DATABASE_URI, DATABASE_NAME, ADMIN_IDS, VERIFY_EXPIRE_TIME
 
-# लॉगिंग सेटअप
+# लॉगिंग सेटअप (आपके main.py से मेल खाता हुआ)
 logger = logging.getLogger(__name__)
 
 # MongoDB कनेक्शन
@@ -14,7 +14,7 @@ db = client[DATABASE_NAME]
 # इंडेक्स बनाना (सर्चिंग की स्पीड के लिए)
 async def create_indexes():
     try:
-        # 'name' फ़ील्ड पर टेक्स्ट इंडेक्स बनाना ताकि सर्चिंग तेज़ हो
+        # 'name' फ़ील्ड पर टेक्स्ट इंडेक्स
         await db.files.create_index([("name", "text")])
         # file_id और user_id के लिए यूनिक इंडेक्स
         await db.files.create_index("file_id", unique=True)
@@ -30,7 +30,6 @@ async def is_verified(user_id):
     try:
         user = await db.users.find_one({"user_id": user_id})
         if user and user.get("expire_at"):
-            # यदि वर्तमान समय, expire_at से कम है तो यूजर वेरीफाइड है
             return user["expire_at"] > time.time()
         return False
     except Exception as e: 
@@ -83,7 +82,7 @@ async def add_user(user_id):
 # फाइल को आईडी या _id से ढूंढना
 async def get_file_by_id(fid):
     try:
-        # अगर fid एक वैध ObjectId है, तो उससे सर्च करें
+        # अगर fid एक वैध ObjectId है
         if ObjectId.is_valid(fid):
             return await db.files.find_one({"_id": ObjectId(fid)})
         # अन्यथा file_id से सर्च करें
