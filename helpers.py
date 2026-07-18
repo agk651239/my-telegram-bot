@@ -56,11 +56,13 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     elif message.audio: file_type = "audio"
     else: file_type = "photo"
 
-    # फाइल का नाम निकालना
-    file_name = getattr(media, "file_name", None)
-    if not file_name:
-        # कैप्शन को प्राथमिकता दें, नहीं तो फाइल टाइप का इस्तेमाल करें
+    # फाइल का नाम निकालना (कैप्शन को प्राथमिकता दें)
+    raw_name = getattr(media, "file_name", None)
+    if not raw_name:
+        # अगर फाइल नाम नहीं है तो कैप्शन का इस्तेमाल करें
         file_name = message.caption if message.caption else f"{file_type.capitalize()}_File"
+    else:
+        file_name = raw_name
         
     # नाम को क्लीन करना
     clean_name = clean_file_name(file_name)
@@ -73,8 +75,9 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
         # फोटो के मामले में सबसे बड़ी फोटो का file_id लें
         thumb_id = message.photo[-1].file_id
         
+    # ध्यान दें: हमने यहाँ file_id को वैसा ही रखा है ताकि डेटाबेस में एंट्री बनी रहे
     return {
-        "file_id": media.file_id,
+        "file_id": media.file_id, 
         "name": clean_name,
         "file_type": file_type,
         "file_size": getattr(media, "file_size", 0),
