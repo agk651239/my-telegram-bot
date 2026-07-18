@@ -32,6 +32,7 @@ async def get_shortlink(url: str) -> str:
             async with session.get(api_url, params=params, timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
+                    # Response JSON check
                     shortened = data.get("shortenedUrl") or data.get("shorturl") or data.get("link")
                     return shortened if shortened else url
                 else:
@@ -41,7 +42,7 @@ async def get_shortlink(url: str) -> str:
         logger.error(f"❌ शॉर्टनर API में एरर: {e}")
         return url
 
-# 2. फाइल की जानकारी (Updated)
+# 2. फाइल की जानकारी
 async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     # मीडिया ऑब्जेक्ट की पहचान
     media = message.document or message.video or message.audio or message.photo
