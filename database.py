@@ -8,21 +8,18 @@ from config import DATABASE_URI, DATABASE_NAME, ADMIN_IDS, VERIFY_EXPIRE_TIME
 logger = logging.getLogger(__name__)
 
 # MongoDB कनेक्शन
-try:
-    client = AsyncIOMotorClient(DATABASE_URI)
-    db = client[DATABASE_NAME]
-    logger.info("✅ डेटाबेस से सफलतापूर्वक जुड़ गए।")
-except Exception as e:
-    logger.error(f"❌ डेटाबेस कनेक्शन एरर: {e}")
+client = AsyncIOMotorClient(DATABASE_URI)
+db = client[DATABASE_NAME]
 
 # इंडेक्स बनाना (सर्चिंग की स्पीड के लिए)
 async def create_indexes():
     try:
-        # name पर text index बनाना ताकि सर्चिंग बहुत फ़ास्ट हो
+        # 'name' फ़ील्ड पर टेक्स्ट इंडेक्स बनाना ताकि सर्चिंग तेज़ हो
         await db.files.create_index([("name", "text")])
+        # file_id और user_id के लिए यूनिक इंडेक्स
         await db.files.create_index("file_id", unique=True)
         await db.users.create_index("user_id", unique=True)
-        logger.info("✅ डेटाबेस इंडेक्स तैयार हैं।")
+        logger.info("✅ डेटाबेस इंडेक्स सफलतापूर्वक तैयार हैं।")
     except Exception as e:
         logger.error(f"❌ इंडेक्स क्रिएशन एरर: {e}")
 
@@ -33,6 +30,7 @@ async def is_verified(user_id):
     try:
         user = await db.users.find_one({"user_id": user_id})
         if user and user.get("expire_at"):
+            # यदि वर्तमान समय, expire_at से कम है तो यूजर वेरीफाइड है
             return user["expire_at"] > time.time()
         return False
     except Exception as e: 
@@ -49,23 +47,22 @@ async def set_verify(user_id):
             upsert=True
         )
     except Exception as e: 
-        logger.error(f"❌ वेरिफिकेशन सेट करने में एरर: {e}")
+        logger.error(f"❌ वेरिफिकेशन अपडेट एरर: {e}")
 
 # फाइल को डेटाबेस में जोड़ना
 async def add_file(d):
     if not d or "file_id" not in d: 
         return
     try:
-        # अपडेट करते समय डेटा को सही से अपडेट करना
         await db.files.update_one(
             {"file_id": d["file_id"]}, 
             {"$set": {
-                "name": d["name"], 
+                "name": d.get("name"), 
                 "file_type": d.get("file_type"), 
                 "file_size": d.get("file_size", 0), 
                 "thumb_id": d.get("thumb_id"), 
                 "message_id": d.get("message_id"),
-                "created_at": time.time() # कब इंडेक्स किया, यह भी जोड़ दिया
+                "created_at": time.time()
             }}, 
             upsert=True
         )
@@ -77,7 +74,7 @@ async def add_user(user_id):
     try: 
         await db.users.update_one(
             {"user_id": user_id}, 
-            {"$set": {"user_id": user_id}}, 
+            {"$setOnInsert": {"user_id": user_id}}, 
             upsert=True
         )
     except Exception as e: 
@@ -86,10 +83,10 @@ async def add_user(user_id):
 # फाइल को आईडी या _id से ढूंढना
 async def get_file_by_id(fid):
     try:
+        # अगर fid एक वैध ObjectId है, तो उससे सर्च करें
         if ObjectId.is_valid(fid):
-            # ObjectId से सर्च करें
             return await db.files.find_one({"_id": ObjectId(fid)})
-        # या file_id से
+        # अन्यथा file_id से सर्च करें
         return await db.files.find_one({"file_id": fid})
     except Exception as e:
         logger.error(f"❌ फाइल फेच एरर: {e}")
