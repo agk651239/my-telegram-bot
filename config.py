@@ -31,8 +31,10 @@ else:
 SHORTENER_API = os.environ.get("SHORTENER_API", "")
 SHORTENER_WEBSITE = os.environ.get("SHORTENER_WEBSITE", "")
 
-# Server Port
-PORT = int(os.environ.get("PORT", 8080))
+# Server Port & SSL Settings
+PORT = int(os.environ.get("PORT", 10000))
+# 'True' स्ट्रिंग को बुलियन True में बदलने के लिए
+HAS_SSL = os.environ.get("HAS_SSL", "False").lower() == "true"
 
 # Time Settings (सेकंड्स में)
 VERIFY_EXPIRE_TIME = int(os.environ.get("VERIFY_EXPIRE_TIME", 86400)) # 24 घंटे
