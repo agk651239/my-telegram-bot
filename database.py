@@ -15,7 +15,7 @@ try:
 except Exception as e:
     logger.error(f"❌ डेटाबेस कनेक्शन एरर: {e}")
 
-# इंडेक्स बनाना (बोट की सर्चिंग स्पीड बढ़ाने के लिए जरूरी है)
+# इंडेक्स बनाना
 async def create_indexes():
     try:
         await db.files.create_index("file_id", unique=True)
@@ -25,13 +25,12 @@ async def create_indexes():
     except Exception as e:
         logger.error(f"❌ इंडेक्स क्रिएशन एरर: {e}")
 
-# वेरिफिकेशन चेक करना (24 घंटे वाला लॉजिक)
+# वेरिफिकेशन चेक करना
 async def is_verified(user_id):
     if user_id in ADMIN_IDS: 
         return True
     try:
         user = await db.users.find_one({"user_id": user_id})
-        # अगर यूजर डेटाबेस में है और expire_at अभी के समय से ज्यादा है
         if user and user.get("expire_at"):
             return user["expire_at"] > time.time()
         return False
@@ -39,7 +38,7 @@ async def is_verified(user_id):
         logger.error(f"❌ वेरिफिकेशन चेक एरर: {e}")
         return False
 
-# वेरिफिकेशन सेट करना (24 घंटे का समय जोड़ने के लिए)
+# वेरिफिकेशन सेट करना
 async def set_verify(user_id):
     try:
         expire_time = time.time() + VERIFY_EXPIRE_TIME
@@ -51,16 +50,16 @@ async def set_verify(user_id):
     except Exception as e: 
         logger.error(f"❌ वेरिफिकेशन सेट करने में एरर: {e}")
 
-# फाइल को डेटाबेस में जोड़ना (message_id के साथ)
+# फाइल को डेटाबेस में जोड़ना (Updated to include file_type)
 async def add_file(d):
     if not d or "file_id" not in d: 
         return
     try:
-        # main.py से आने वाले message_id को सुरक्षित तरीके से सेव करना
         await db.files.update_one(
             {"file_id": d["file_id"]}, 
             {"$set": {
                 "name": d["name"], 
+                "file_type": d.get("file_type"), # यह नया फील्ड सेव होगा
                 "file_size": d.get("file_size", 0), 
                 "thumb_id": d.get("thumb_id"), 
                 "message_id": d.get("message_id")
@@ -81,10 +80,9 @@ async def add_user(user_id):
     except Exception as e: 
         logger.error(f"❌ यूजर ऐड एरर: {e}")
 
-# फाइल को आईडी या _id से ढूंढना (Unique Link के लिए)
+# फाइल को आईडी या _id से ढूंढना
 async def get_file_by_id(fid):
     try:
-        # अगर fid एक वैध ObjectId है, तो उससे सर्च करें, वरना file_id से
         if ObjectId.is_valid(fid):
             return await db.files.find_one({"_id": ObjectId(fid)})
         return await db.files.find_one({"file_id": fid})
