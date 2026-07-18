@@ -28,7 +28,6 @@ async def start_web():
     app_web = web.Application()
     app_web.router.add_get('/', lambda r: web.Response(text="Bot is running"))
     
-    # HAS_SSL सपोर्ट जोड़ दिया गया है
     protocol = "https" if HAS_SSL else "http"
     logger.info(f"🌐 वेब-सर्वर {protocol}://0.0.0.0:{PORT} पर शुरू हो रहा है।")
     
@@ -41,7 +40,6 @@ async def keep_alive():
         while True:
             await asyncio.sleep(60)
             try:
-                # यहाँ भी प्रोटोकॉल चेक
                 protocol = "https" if HAS_SSL else "http"
                 async with session.get(f"{protocol}://localhost:{PORT}") as resp:
                     logging.info(f"Pinged server, status: {resp.status}")
@@ -81,9 +79,15 @@ async def start(client, message):
     
     command = message.text.split(" ", 1)
     
+    # वेरिफिकेशन सफल होने पर मैसेज
     if len(command) > 1 and "verify_" in command[1]:
         await set_verify(user_id)
-        await message.reply("✅ **Verification successful!**")
+        await message.reply(
+            "✅ **Verification successful!**\n\n"
+            "**Please click on the video link again to download your file.**\n\n"
+            "वेरिफिकेशन सफल रहा !\n"
+            "कृपया फाइल डाउनलोड करने के लिए वीडियो लिंक पर दोबारा क्लिक करें।"
+        )
         return
 
     if len(command) > 1 and "getfile_" in command[1]:
@@ -93,15 +97,19 @@ async def start(client, message):
         if FORCE_SUB_CHANNEL:
             try: await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
             except:
-                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें", url=f"https://t.me/{FORCE_SUB_CHANNEL.replace('-100', '')}")]]
-                await message.reply("⚠️ **पहले चैनल जॉइन करें!**", reply_markup=types.InlineKeyboardMarkup(btn))
+                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें / Join Channel", url=f"https://t.me/{str(FORCE_SUB_CHANNEL).replace('-100', '')}")]]
+                await message.reply("⚠️ **पहले चैनल जॉइन करें! / Please join the channel first!**", reply_markup=types.InlineKeyboardMarkup(btn))
                 return
 
         # वेरिफिकेशन चेक लॉजिक
         if user_id not in ADMIN_IDS and not await is_verified(user_id):
             short_link = await get_shortlink(f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}")
-            buttons = [[types.InlineKeyboardButton("🔗 वेरीफाई करें", url=short_link)]]
-            await message.reply("⚠️ **Verify to get unlimited access!**", reply_markup=types.InlineKeyboardMarkup(buttons))
+            buttons = [[types.InlineKeyboardButton("🔗 वेरीफाई करें / Verify Now", url=short_link)]]
+            await message.reply(
+                "⚠️ **Verify once to get unlimited file access for the next 24 hours!**\n\n"
+                "वेरिफिकेशन पूरा करें और अगले 24 घंटों तक असीमित (Unlimited) फाइलें डाउनलोड करें!",
+                reply_markup=types.InlineKeyboardMarkup(buttons)
+            )
             return
         
         file_doc = await get_file_by_id(file_id)
@@ -111,9 +119,12 @@ async def start(client, message):
                 sent_msg = await client.copy_message(message.chat.id, DATABASE_CHANNEL, int(file_doc['message_id']))
                 
                 # सूचना मैसेज
-                warn_msg = await message.reply("⚠️ **आपकी फाइल/वीडियो 1 घंटे में अपने आप डिलीट हो जाएगी। कृपया इसे अभी सेव कर लें!**")
+                warn_msg = await message.reply(
+                    "⚠️ **आपकी फाइल 1 घंटे में अपने आप डिलीट हो जाएगी। कृपया इसे अभी सेव कर लें!**\n\n"
+                    "**Your file will be deleted automatically in 1 hour. Please save it now!**"
+                )
                 
-                # फाइल और सूचना मैसेज दोनों को डिलीट करने का टास्क
+                # ऑटो-डिलीट टास्क
                 asyncio.create_task(delete_after_delay(sent_msg, 3600))
                 asyncio.create_task(delete_after_delay(warn_msg, 3600))
                 
@@ -121,7 +132,7 @@ async def start(client, message):
                 await message.reply(f"❌ एरर: {e}")
         return
         
-    await message.reply("बोट चालू है! सर्च करने के लिए फाइल का नाम लिखें।")
+    await message.reply("बोट चालू है! सर्च करने के लिए फाइल का नाम लिखें।\nBot is active! Send file name to search.")
 
 # --- 4. फाइल इंडेक्सिंग ---
 @app.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video | filters.photo))
@@ -139,7 +150,7 @@ async def index_files(client, message):
 async def auto_search(client, message):
     query = message.text
     files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=5)
-    if not files: return await message.reply("❌ कोई फाइल नहीं मिली।")
+    if not files: return await message.reply("❌ कोई फाइल नहीं मिली। / No file found.")
     for f in files:
         unique_link = f"https://t.me/{BOT_USERNAME}?start=getfile_{f['_id']}"
         await message.reply(f"📂 **{f['name']}**\n🔗 `{unique_link}`")
