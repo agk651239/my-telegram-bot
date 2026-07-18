@@ -23,10 +23,15 @@ async def delete_after_delay(message, delay):
     except Exception:
         pass
 
-# --- प्रीमियम स्टेबिलिटी ---
+# --- प्रीमियम स्टेबिलिटी (वेब-सर्वर SSL सपोर्ट के साथ) ---
 async def start_web():
     app_web = web.Application()
     app_web.router.add_get('/', lambda r: web.Response(text="Bot is running"))
+    
+    # HAS_SSL सपोर्ट जोड़ दिया गया है
+    protocol = "https" if HAS_SSL else "http"
+    logger.info(f"🌐 वेब-सर्वर {protocol}://0.0.0.0:{PORT} पर शुरू हो रहा है।")
+    
     runner = web.AppRunner(app_web)
     await runner.setup()
     await web.TCPSite(runner, '0.0.0.0', int(PORT)).start()
@@ -36,7 +41,9 @@ async def keep_alive():
         while True:
             await asyncio.sleep(60)
             try:
-                async with session.get("http://localhost:" + str(PORT)) as resp:
+                # यहाँ भी प्रोटोकॉल चेक
+                protocol = "https" if HAS_SSL else "http"
+                async with session.get(f"{protocol}://localhost:{PORT}") as resp:
                     logging.info(f"Pinged server, status: {resp.status}")
             except Exception as e:
                 logging.error(f"❌ Ping Failed: {e}")
