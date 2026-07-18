@@ -25,7 +25,6 @@ async def get_shortlink(url: str) -> str:
     
     try:
         async with aiohttp.ClientSession() as session:
-            # URL फॉर्मेटिंग सुनिश्चित करना
             base_url = SHORTENER_WEBSITE.rstrip('/')
             api_url = f"{base_url}/api"
             params = {"api": SHORTENER_API, "url": url}
@@ -33,7 +32,6 @@ async def get_shortlink(url: str) -> str:
             async with session.get(api_url, params=params, timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # रिस्पॉन्स को सुरक्षित तरीके से गेट करना
                     shortened = data.get("shortenedUrl") or data.get("shorturl") or data.get("link")
                     return shortened if shortened else url
                 else:
@@ -56,10 +54,10 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     elif message.audio: file_type = "audio"
     else: file_type = "photo"
 
-    # फाइल का नाम निकालना (कैप्शन को प्राथमिकता दें)
+    # फाइल का नाम निकालना
     raw_name = getattr(media, "file_name", None)
     if not raw_name:
-        # अगर फाइल नाम नहीं है तो कैप्शन का इस्तेमाल करें
+        # कैप्शन को प्राथमिकता दें, नहीं तो फाइल टाइप का इस्तेमाल करें
         file_name = message.caption if message.caption else f"{file_type.capitalize()}_File"
     else:
         file_name = raw_name
@@ -72,10 +70,9 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     if getattr(media, "thumbs", None):
         thumb_id = media.thumbs[0].file_id
     elif message.photo:
-        # फोटो के मामले में सबसे बड़ी फोटो का file_id लें
         thumb_id = message.photo[-1].file_id
         
-    # ध्यान दें: हमने यहाँ file_id को वैसा ही रखा है ताकि डेटाबेस में एंट्री बनी रहे
+    # यहाँ हमने सभी जरूरी जानकारी को डिक्शनरी में पैक कर दिया है
     return {
         "file_id": media.file_id, 
         "name": clean_name,
