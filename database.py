@@ -11,13 +11,12 @@ logger = logging.getLogger(__name__)
 client = AsyncIOMotorClient(DATABASE_URI)
 db = client[DATABASE_NAME]
 
-# इंडेक्स बनाना (सर्चिंग की स्पीड के लिए)
+# इंडेक्स बनाना
 async def create_indexes():
     try:
-        # 'name' फ़ील्ड पर टेक्स्ट इंडेक्स
+        # नाम पर इंडेक्स ताकि सर्चिंग तेज हो
         await db.files.create_index([("name", "text")], default_language='none')
-        # file_id से unique=True हटा दिया गया है ताकि अनलिमिटेड फाइलें ऐड हो सकें
-        # await db.files.create_index("file_id", unique=True) # यह लाइन हटा दी है
+        # यूजर आईडी के लिए इंडेक्स (यूनिक रहना जरूरी है)
         await db.users.create_index("user_id", unique=True)
         logger.info("✅ डेटाबेस इंडेक्स सफलतापूर्वक तैयार हैं।")
     except Exception as e:
@@ -48,12 +47,13 @@ async def set_verify(user_id):
     except Exception as e: 
         logger.error(f"❌ वेरिफिकेशन अपडेट एरर: {e}")
 
-# फाइल को डेटाबेस में जोड़ना (बिना अपडेट के, सिर्फ ऐड करने के लिए)
+# फाइल को डेटाबेस में जोड़ना (बिना किसी डिलीट या ओवरराइट लॉजिक के)
 async def add_file(d):
     if not d or "file_id" not in d: 
         return
     try:
-        # यहाँ हमने 'insert_one' का उपयोग किया है ताकि पुरानी फाइल डिलीट या ओवरराइट न हो
+        # यहाँ insert_one का मतलब है कि हर फाइल की एक नई एंट्री होगी
+        # पुरानी फाइल को छेड़ा नहीं जाएगा
         await db.files.insert_one({
             "name": d.get("name"), 
             "file_type": d.get("file_type"), 
@@ -63,7 +63,7 @@ async def add_file(d):
             "file_id": d.get("file_id"), 
             "created_at": time.time()
         })
-        logger.info(f"✅ फाइल सफलतापूर्वक ऐड हुई: {d.get('name')}")
+        logger.info(f"✅ नई फाइल सेव हुई: {d.get('name')}")
     except Exception as e: 
         logger.error(f"❌ फाइल ऐड करने में एरर: {e}")
 
