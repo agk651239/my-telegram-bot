@@ -24,6 +24,11 @@ async def create_indexes():
         await db.files.create_index([("name", "text")], default_language='none')
         # यूजर आईडी के लिए इंडेक्स
         await db.users.create_index("user_id", unique=True)
+        # फाइल के लिए यूनिक इंडेक्स ताकि एक ही फाइल बार-बार न जुड़े
+        try:
+            await db.files.create_index("file_id", unique=True)
+        except:
+            pass
         logger.info("✅ डेटाबेस इंडेक्स सफलतापूर्वक तैयार हैं।")
     except Exception as e:
         logger.error(f"❌ इंडेक्स क्रिएशन एरर: {e}")
@@ -53,22 +58,25 @@ async def set_verify(user_id):
     except Exception as e: 
         logger.error(f"❌ वेरिफिकेशन अपडेट एरर: {e}")
 
-# फाइल को डेटाबेस में जोड़ना (केवल insert_one, कोई डिलीट/अपडेट नहीं)
+# फाइल को डेटाबेस में जोड़ना (duplicate handling add kiya hai)
 async def add_file(d):
     if not d or "file_id" not in d: 
         return
     try:
-        # यहाँ insert_one है, जो हर बार फाइल की नई एंट्री करेगा
-        await db.files.insert_one({
-            "name": d.get("name"), 
-            "file_type": d.get("file_type"), 
-            "file_size": d.get("file_size", 0), 
-            "thumb_id": d.get("thumb_id"), 
-            "message_id": d.get("message_id"),
-            "file_id": d.get("file_id"), 
-            "created_at": time.time()
-        })
-        logger.info(f"✅ नई फाइल सेव हुई: {d.get('name')}")
+        # update_one ka use kiya hai upsert=True ke saath, isse duplicate entry nahi banegi
+        await db.files.update_one(
+            {"file_id": d.get("file_id")},
+            {"$set": {
+                "name": d.get("name"), 
+                "file_type": d.get("file_type"), 
+                "file_size": d.get("file_size", 0), 
+                "thumb_id": d.get("thumb_id"), 
+                "message_id": d.get("message_id"),
+                "created_at": time.time()
+            }},
+            upsert=True
+        )
+        logger.info(f"✅ फाइल सेव या अपडेट हुई: {d.get('name')}")
     except Exception as e: 
         logger.error(f"❌ फाइल ऐड करने में एरर: {e}")
 
