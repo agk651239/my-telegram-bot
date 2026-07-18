@@ -1,5 +1,7 @@
 from pyrogram import Client, filters, types, idle
 import asyncio
+import aiohttp
+import logging
 from config import *
 from database import * 
 from helpers import *
@@ -20,6 +22,21 @@ async def delete_after_delay(message, delay):
         await message.delete()
     except Exception as e:
         pass
+
+# --- नया फंक्शन: बोट को ऑनलाइन रखने के लिए (Keep Alive) ---
+async def keep_alive():
+    """Keep bot alive by sending periodic pings."""
+    async with aiohttp.ClientSession() as session:
+        while True:
+            await asyncio.sleep(298) # हर 5 मिनट में
+            try:
+                # यहाँ हमने मान लिया है कि URL आपके बोट का Render लिंक है
+                # आप config.py में URL=... जोड़ सकते हैं
+                async with session.get(f"https://{BOT_USERNAME}.onrender.com") as resp:
+                    if resp.status != 200:
+                        logging.warning(f"⚠️ Ping Error! Status: {resp.status}")
+            except Exception as e:
+                logging.error(f"❌ Ping Failed: {e}")
 
 # --- 1. ब्रॉडकास्ट कमांड ---
 @app.on_message(filters.command("broadcast") & filters.user(ADMIN_IDS))
@@ -80,10 +97,10 @@ async def start(client, message):
         file_doc = await get_file_by_id(file_id)
         if file_doc:
             try:
-                # फाइल भेजने के बाद उसे 'sent_msg' में सेव किया
+                # फाइल भेजी
                 sent_msg = await client.copy_message(message.chat.id, DATABASE_CHANNEL, int(file_doc['message_id']))
-                # 3600 सेकंड (1 घंटा) बाद डिलीट होने का टास्क लगाया
-                asyncio.create_task(delete_after_delay(sent_msg, 3600))
+                # अब AUTO_DELETE_TIME का उपयोग हो रहा है (config.py से)
+                asyncio.create_task(delete_after_delay(sent_msg, AUTO_DELETE_TIME))
             except Exception as e:
                 await message.reply(f"❌ एरर: {e}")
         return
@@ -121,6 +138,7 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.run_until_complete(create_indexes())
     loop.create_task(start_web())
+    loop.create_task(keep_alive()) # यहाँ keep_alive टास्क जोड़ा गया
     app.start()
     try: app.send_message(LOG_CHANNEL, "🚀 **बोट स्टार्ट हो गया है!**")
     except: pass
