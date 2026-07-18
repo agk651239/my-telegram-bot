@@ -14,10 +14,10 @@ db = client[DATABASE_NAME]
 # इंडेक्स बनाना (सर्चिंग की स्पीड के लिए)
 async def create_indexes():
     try:
-        # 'name' फ़ील्ड पर टेक्स्ट इंडेक्स (सर्चिंग के लिए)
+        # 'name' फ़ील्ड पर टेक्स्ट इंडेक्स
         await db.files.create_index([("name", "text")], default_language='none')
-        # file_id और user_id के लिए यूनिक इंडेक्स
-        await db.files.create_index("file_id", unique=True)
+        # file_id से unique=True हटा दिया गया है ताकि अनलिमिटेड फाइलें ऐड हो सकें
+        # await db.files.create_index("file_id", unique=True) # यह लाइन हटा दी है
         await db.users.create_index("user_id", unique=True)
         logger.info("✅ डेटाबेस इंडेक्स सफलतापूर्वक तैयार हैं।")
     except Exception as e:
@@ -48,25 +48,24 @@ async def set_verify(user_id):
     except Exception as e: 
         logger.error(f"❌ वेरिफिकेशन अपडेट एरर: {e}")
 
-# फाइल को डेटाबेस में जोड़ना (Upsert के साथ)
+# फाइल को डेटाबेस में जोड़ना (बिना अपडेट के, सिर्फ ऐड करने के लिए)
 async def add_file(d):
     if not d or "file_id" not in d: 
         return
     try:
-        await db.files.update_one(
-            {"file_id": d["file_id"]}, 
-            {"$set": {
-                "name": d.get("name"), 
-                "file_type": d.get("file_type"), 
-                "file_size": d.get("file_size", 0), 
-                "thumb_id": d.get("thumb_id"), 
-                "message_id": d.get("message_id"),
-                "updated_at": time.time() # updated_at जोड़ना बेहतर रहता है
-            }}, 
-            upsert=True
-        )
+        # यहाँ हमने 'insert_one' का उपयोग किया है ताकि पुरानी फाइल डिलीट या ओवरराइट न हो
+        await db.files.insert_one({
+            "name": d.get("name"), 
+            "file_type": d.get("file_type"), 
+            "file_size": d.get("file_size", 0), 
+            "thumb_id": d.get("thumb_id"), 
+            "message_id": d.get("message_id"),
+            "file_id": d.get("file_id"), 
+            "created_at": time.time()
+        })
+        logger.info(f"✅ फाइल सफलतापूर्वक ऐड हुई: {d.get('name')}")
     except Exception as e: 
-        logger.error(f"❌ फाइल ऐड/इंडेक्सिंग एरर: {e}")
+        logger.error(f"❌ फाइल ऐड करने में एरर: {e}")
 
 # यूजर को डेटाबेस में जोड़ना
 async def add_user(user_id):
@@ -82,7 +81,7 @@ async def add_user(user_id):
 # फाइल को आईडी या _id से ढूंढना
 async def get_file_by_id(fid):
     try:
-        # अगर fid एक वैध ObjectId है (जो ऑटो-सर्च से आता है)
+        # अगर fid एक वैध ObjectId है
         if ObjectId.is_valid(fid):
             return await db.files.find_one({"_id": ObjectId(fid)})
         # अन्यथा file_id से सर्च करें
