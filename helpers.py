@@ -20,20 +20,20 @@ def clean_file_name(name: str) -> str:
 
 # 1. शॉर्टनर लिंक जेनरेट करने के लिए फंक्शन
 async def get_shortlink(url: str) -> str:
-    # यदि API की नहीं है, तो ओरिजिनल URL ही वापस कर दें
     if not SHORTENER_API or not SHORTENER_WEBSITE:
         return url
     
     try:
         async with aiohttp.ClientSession() as session:
-            # API URL का स्ट्रक्चर प्रीमियम ऑटोटिलटर के हिसाब से
-            api_url = f"{SHORTENER_WEBSITE.rstrip('/')}/api"
+            # URL फॉर्मेटिंग सुनिश्चित करना
+            base_url = SHORTENER_WEBSITE.rstrip('/')
+            api_url = f"{base_url}/api"
             params = {"api": SHORTENER_API, "url": url}
             
             async with session.get(api_url, params=params, timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # रिस्पॉन्स के अलग-अलग फॉर्मेट को हैंडल करना
+                    # रिस्पॉन्स को सुरक्षित तरीके से गेट करना
                     shortened = data.get("shortenedUrl") or data.get("shorturl") or data.get("link")
                     return shortened if shortened else url
                 else:
@@ -45,34 +45,34 @@ async def get_shortlink(url: str) -> str:
 
 # 2. फाइल की जानकारी (Updated)
 async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
-    # मीडिया ऑब्जेक्ट को पहचानना
+    # मीडिया ऑब्जेक्ट की पहचान
     media = message.document or message.video or message.audio or message.photo
     if not media:
         return None
     
-    # फाइल का टाइप सुनिश्चित करना
-    file_type = "document"
-    if message.video: file_type = "video"
+    # फाइल का टाइप डिसाइड करना
+    if message.document: file_type = "document"
+    elif message.video: file_type = "video"
     elif message.audio: file_type = "audio"
-    elif message.photo: file_type = "photo"
+    else: file_type = "photo"
 
     # फाइल का नाम निकालना
     file_name = getattr(media, "file_name", None)
     if not file_name:
-        # अगर फाइल नाम नहीं है तो कैप्शन या टाइप का उपयोग करें
+        # कैप्शन को प्राथमिकता दें, नहीं तो फाइल टाइप का इस्तेमाल करें
         file_name = message.caption if message.caption else f"{file_type.capitalize()}_File"
         
-    # नाम को क्लीन करना (सर्चिंग को बेहतर बनाने के लिए)
+    # नाम को क्लीन करना
     clean_name = clean_file_name(file_name)
     
-    # थंबनेल आईडी निकालना
+    # थंबनेल आईडी निकालने का सुरक्षित तरीका
     thumb_id = None
-    if hasattr(media, "thumbs") and media.thumbs:
+    if getattr(media, "thumbs", None):
         thumb_id = media.thumbs[0].file_id
     elif message.photo:
+        # फोटो के मामले में सबसे बड़ी फोटो का file_id लें
         thumb_id = message.photo[-1].file_id
         
-    # डेटाबेस में सेव करने योग्य डिक्शनरी
     return {
         "file_id": media.file_id,
         "name": clean_name,
