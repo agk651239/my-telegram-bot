@@ -154,11 +154,11 @@ async def auto_search(client, message):
     if not files: 
         return await message.reply("❌ कोई फाइल नहीं मिली। / No file found.")
     
-    # रिजल्ट्स दिखाएं
+    # रिजल्ट्स दिखाएं - बटन के साथ
     for f in files:
-        # यहाँ f['_id'] का उपयोग किया गया है जो डेटाबेस के लिए सुरक्षित है
         unique_link = f"https://t.me/{BOT_USERNAME}?start=getfile_{f['_id']}"
-        await message.reply(f"📂 **{f['name']}**\n🔗 `{unique_link}`")
+        btn = [[types.InlineKeyboardButton("📥 फाइल प्राप्त करें (Get File)", url=unique_link)]]
+        await message.reply(f"📂 **{f['name']}**", reply_markup=types.InlineKeyboardMarkup(btn))
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
