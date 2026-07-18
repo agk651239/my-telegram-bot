@@ -24,7 +24,7 @@ async def delete_after_delay(message, delay):
     except Exception:
         pass
 
-# --- सुधरा हुआ: Keep Alive (Ping Error 404 फिक्स) ---
+# --- प्रीमियम कीप-अलाइव (डिस्कनेक्ट न होने के लिए) ---
 async def keep_alive():
     """स्वयं को पिंग करें ताकि Render स्लीप न हो।"""
     async with aiohttp.ClientSession() as session:
@@ -36,6 +36,14 @@ async def keep_alive():
                     logging.info(f"Pinged server, status: {resp.status}")
             except Exception as e:
                 logging.error(f"❌ Ping Failed: {e}")
+
+# --- वेब सर्वर सेटअप (प्रीमियम बोट फीचर) ---
+async def start_web():
+    app_web = web.Application()
+    app_web.router.add_get('/', lambda r: web.Response(text="Bot is running"))
+    runner = web.AppRunner(app_web)
+    await runner.setup()
+    await web.TCPSite(runner, '0.0.0.0', int(PORT)).start()
 
 # --- 1. ब्रॉडकास्ट कमांड ---
 @app.on_message(filters.command("broadcast") & filters.user(ADMIN_IDS))
@@ -95,7 +103,6 @@ async def start(client, message):
         if file_doc:
             try:
                 sent_msg = await client.copy_message(message.chat.id, DATABASE_CHANNEL, int(file_doc['message_id']))
-                # यदि ऑटो-डिलीट नहीं चाहिए, तो AUTO_DELETE_TIME को 0 रखें
                 asyncio.create_task(delete_after_delay(sent_msg, AUTO_DELETE_TIME))
             except Exception as e:
                 await message.reply(f"❌ एरर: {e}")
@@ -110,7 +117,8 @@ async def index_files(client, message):
     if file_info:
         await add_file(file_info)
         try:
-            await client.send_message(LOG_CHANNEL, f"✅ **इंडेक्स हुआ:**\n📂 {file_info['name']}")
+            # प्रीमियम लॉगिंग फॉर्मेट
+            await client.send_message(LOG_CHANNEL, f"✅ **इंडेक्स हुआ:**\n📂 {file_info['name']}\n🆔 `{file_info['file_id']}`")
         except Exception as e:
             logging.error(f"Log Channel Error: {e}")
 
@@ -123,18 +131,11 @@ async def auto_search(client, message):
         unique_link = f"https://t.me/{BOT_USERNAME}?start=getfile_{f['_id']}"
         await message.reply(f"📂 **{f['name']}**\n🔗 `{unique_link}`")
 
-async def start_web():
-    app_web = web.Application()
-    app_web.router.add_get('/', lambda r: web.Response(text="Bot is running"))
-    runner = web.AppRunner(app_web)
-    await runner.setup()
-    await web.TCPSite(runner, '0.0.0.0', int(PORT)).start()
-
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.run_until_complete(create_indexes())
-    loop.create_task(start_web())
-    loop.create_task(keep_alive())
+    loop.create_task(start_web()) # वेब सर्वर स्टार्ट
+    loop.create_task(keep_alive()) # कीप-अलाइव स्टार्ट
     app.start()
     try: app.send_message(LOG_CHANNEL, "🚀 **बोट स्टार्ट हो गया है!**")
     except: pass
