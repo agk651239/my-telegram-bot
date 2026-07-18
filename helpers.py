@@ -8,7 +8,7 @@ from config import SHORTENER_API, SHORTENER_WEBSITE
 # लॉगिंग सेटअप
 logger = logging.getLogger(__name__)
 
-# नाम को साफ़ करने के लिए (सर्चिंग आसान बनाने के लिए)
+# नाम को साफ़ करने के लिए फंक्शन
 def clean_file_name(name: str) -> str:
     # फाइल नाम से फालतू स्पेशल कैरेक्टर्स और इमोजी हटाना
     name = re.sub(r"[@#$\n\r]", " ", name) 
@@ -45,12 +45,12 @@ async def get_shortlink(url: str) -> str:
 
 # 2. फाइल की जानकारी (Updated)
 async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
-    # फाइल ऑब्जेक्ट को सुरक्षित रूप से चेक करना
+    # मीडिया ऑब्जेक्ट को पहचानना
     media = message.document or message.video or message.audio or message.photo
     if not media:
         return None
     
-    # फाइल का टाइप डिसाइड करना
+    # फाइल का टाइप सुनिश्चित करना
     file_type = "document"
     if message.video: file_type = "video"
     elif message.audio: file_type = "audio"
@@ -59,9 +59,10 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     # फाइल का नाम निकालना
     file_name = getattr(media, "file_name", None)
     if not file_name:
+        # अगर फाइल नाम नहीं है तो कैप्शन या टाइप का उपयोग करें
         file_name = message.caption if message.caption else f"{file_type.capitalize()}_File"
         
-    # नाम को क्लीन करना (ताकि सर्चिंग में दिक्कत न हो)
+    # नाम को क्लीन करना (सर्चिंग को बेहतर बनाने के लिए)
     clean_name = clean_file_name(file_name)
     
     # थंबनेल आईडी निकालना
@@ -71,6 +72,7 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     elif message.photo:
         thumb_id = message.photo[-1].file_id
         
+    # डेटाबेस में सेव करने योग्य डिक्शनरी
     return {
         "file_id": media.file_id,
         "name": clean_name,
