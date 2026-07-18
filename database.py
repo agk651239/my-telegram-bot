@@ -4,7 +4,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import DATABASE_URI, DATABASE_NAME, ADMIN_IDS, VERIFY_EXPIRE_TIME
 
-# लॉगिंग सेटअप (आपके main.py से मेल खाता हुआ)
+# लॉगिंग सेटअप
 logger = logging.getLogger(__name__)
 
 # MongoDB कनेक्शन
@@ -48,7 +48,7 @@ async def set_verify(user_id):
     except Exception as e: 
         logger.error(f"❌ वेरिफिकेशन अपडेट एरर: {e}")
 
-# फाइल को डेटाबेस में जोड़ना
+# फाइल को डेटाबेस में जोड़ना (main.py के साथ सिंक)
 async def add_file(d):
     if not d or "file_id" not in d: 
         return
@@ -71,6 +71,7 @@ async def add_file(d):
 # यूजर को डेटाबेस में जोड़ना
 async def add_user(user_id):
     try: 
+        # $setOnInsert का उपयोग ताकि पुराने डेटा पर प्रभाव न पड़े
         await db.users.update_one(
             {"user_id": user_id}, 
             {"$setOnInsert": {"user_id": user_id}}, 
@@ -82,7 +83,7 @@ async def add_user(user_id):
 # फाइल को आईडी या _id से ढूंढना
 async def get_file_by_id(fid):
     try:
-        # अगर fid एक वैध ObjectId है
+        # अगर fid एक वैध ObjectId है (जो ऑटो-सर्च से आता है)
         if ObjectId.is_valid(fid):
             return await db.files.find_one({"_id": ObjectId(fid)})
         # अन्यथा file_id से सर्च करें
