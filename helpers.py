@@ -6,12 +6,14 @@ from pyrogram.types import Message
 from config import SHORTENER_API, SHORTENER_WEBSITE
 
 # लॉगिंग सेटअप
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # नाम को साफ़ करने के लिए (सर्चिंग आसान बनाने के लिए)
 def clean_file_name(name: str) -> str:
-    name = re.sub(r"[@#$]", "", name) # @, #, $ जैसे निशान हटाता है
+    # फाइल नाम से फालतू स्पेशल कैरेक्टर्स हटाना
+    name = re.sub(r"[@#$\n\r]", " ", name) 
+    # डबल स्पेस को सिंगल स्पेस में बदलना
+    name = re.sub(r"\s+", " ", name)
     return name.strip()
 
 # 1. शॉर्टनर लिंक जेनरेट करने के लिए फंक्शन
@@ -21,12 +23,14 @@ async def get_shortlink(url: str) -> str:
     
     try:
         async with aiohttp.ClientSession() as session:
+            # शॉर्टनर वेबसाइट के अनुसार पेलोड सेट करें (ज्यादातर 'url' पैरामीटर लेती हैं)
             api_url = f"{SHORTENER_WEBSITE.rstrip('/')}/api"
             params = {"api": SHORTENER_API, "url": url}
             
-            async with session.get(api_url, params=params, timeout=10) as response:
+            async with session.get(api_url, params=params, timeout=15) as response:
                 if response.status == 200:
                     data = await response.json()
+                    # कई शॉर्टनर्स में रिस्पॉन्स 'shortenedUrl' या 'shorturl' होता है
                     shortened = data.get("shortenedUrl") or data.get("shorturl") or data.get("link")
                     return shortened if shortened else url
                 else:
@@ -38,7 +42,9 @@ async def get_shortlink(url: str) -> str:
 
 # 2. फाइल की जानकारी (Updated)
 async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
+    file = None
     file_type = None
+
     if message.document:
         file = message.document
         file_type = "document"
@@ -54,13 +60,15 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     else:
         return None
     
-    default_name = f"{file_type.capitalize()}_Message"
-    if hasattr(file, "file_name"):
-        default_name = file.file_name
+    # फाइल का नाम सुरक्षित तरीके से निकालना
+    file_name = getattr(file, "file_name", None)
+    if not file_name:
+        file_name = message.caption if message.caption else f"{file_type.capitalize()}_File"
         
     # नाम को क्लीन करके सेव करें
-    file_name = clean_file_name(message.caption or default_name)
+    clean_name = clean_file_name(file_name)
     
+    # थंबनेल आईडी
     thumb_id = None
     if hasattr(file, "thumbs") and file.thumbs:
         thumb_id = file.thumbs[0].file_id
@@ -69,7 +77,7 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
         
     return {
         "file_id": file.file_id,
-        "name": file_name,
+        "name": clean_name,
         "file_type": file_type,
         "file_size": getattr(file, "file_size", 0),
         "thumb_id": thumb_id,
