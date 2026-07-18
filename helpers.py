@@ -1,5 +1,6 @@
 import aiohttp
 import logging
+import re
 from typing import Optional, Dict, Any
 from pyrogram.types import Message
 from config import SHORTENER_API, SHORTENER_WEBSITE
@@ -7,6 +8,11 @@ from config import SHORTENER_API, SHORTENER_WEBSITE
 # लॉगिंग सेटअप
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# नाम को साफ़ करने के लिए (सर्चिंग आसान बनाने के लिए)
+def clean_file_name(name: str) -> str:
+    name = re.sub(r"[@#$]", "", name) # @, #, $ जैसे निशान हटाता है
+    return name.strip()
 
 # 1. शॉर्टनर लिंक जेनरेट करने के लिए फंक्शन
 async def get_shortlink(url: str) -> str:
@@ -30,12 +36,8 @@ async def get_shortlink(url: str) -> str:
         logger.error(f"❌ शॉर्टनर API में एरर: {e}")
         return url
 
-# 2. फाइल की जानकारी (Updated with 'file_type')
+# 2. फाइल की जानकारी (Updated)
 async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
-    """
-    टेलीग्राम मैसेज से फाइल, वीडियो या फोटो की डिटेल्स निकालता है।
-    """
-    # फाइल टाइप चेक करें
     file_type = None
     if message.document:
         file = message.document
@@ -52,14 +54,13 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     else:
         return None
     
-    # फाइल का नाम: caption (अगर है) या फाइल का ओरिजिनल नाम
     default_name = f"{file_type.capitalize()}_Message"
     if hasattr(file, "file_name"):
         default_name = file.file_name
         
-    file_name = (message.caption or default_name).strip()
+    # नाम को क्लीन करके सेव करें
+    file_name = clean_file_name(message.caption or default_name)
     
-    # थंबनेल का ID
     thumb_id = None
     if hasattr(file, "thumbs") and file.thumbs:
         thumb_id = file.thumbs[0].file_id
@@ -69,7 +70,7 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     return {
         "file_id": file.file_id,
         "name": file_name,
-        "file_type": file_type, # यह नया फील्ड है
+        "file_type": file_type,
         "file_size": getattr(file, "file_size", 0),
         "thumb_id": thumb_id,
         "message_id": message.id
