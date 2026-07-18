@@ -13,6 +13,14 @@ app = Client(
     bot_token=BOT_TOKEN
 )
 
+# --- नया फंक्शन: मैसेज ऑटो-डिलीट के लिए ---
+async def delete_after_delay(message, delay):
+    await asyncio.sleep(delay)
+    try:
+        await message.delete()
+    except Exception as e:
+        pass
+
 # --- 1. ब्रॉडकास्ट कमांड ---
 @app.on_message(filters.command("broadcast") & filters.user(ADMIN_IDS))
 async def broadcast_handler(client, message):
@@ -25,7 +33,7 @@ async def broadcast_handler(client, message):
         try:
             await client.copy_message(user["user_id"], message.chat.id, message.reply_to_message.id)
             success += 1
-            await asyncio.sleep(0.1) # FloodWait से बचने के लिए
+            await asyncio.sleep(0.1) 
         except: pass
     await message.reply(f"✅ मैसेज {success} यूजर्स को भेज दिया गया।")
 
@@ -72,7 +80,10 @@ async def start(client, message):
         file_doc = await get_file_by_id(file_id)
         if file_doc:
             try:
-                await client.copy_message(message.chat.id, DATABASE_CHANNEL, int(file_doc['message_id']))
+                # फाइल भेजने के बाद उसे 'sent_msg' में सेव किया
+                sent_msg = await client.copy_message(message.chat.id, DATABASE_CHANNEL, int(file_doc['message_id']))
+                # 3600 सेकंड (1 घंटा) बाद डिलीट होने का टास्क लगाया
+                asyncio.create_task(delete_after_delay(sent_msg, 3600))
             except Exception as e:
                 await message.reply(f"❌ एरर: {e}")
         return
@@ -111,7 +122,6 @@ if __name__ == "__main__":
     loop.run_until_complete(create_indexes())
     loop.create_task(start_web())
     app.start()
-    # --- 3. बोट स्टार्ट नोटिफिकेशन ---
     try: app.send_message(LOG_CHANNEL, "🚀 **बोट स्टार्ट हो गया है!**")
     except: pass
     idle()
