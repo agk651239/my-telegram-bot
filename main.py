@@ -2,6 +2,7 @@ from pyrogram import Client, filters, types, idle
 import asyncio
 import aiohttp
 import logging
+import time  # यह लाइन बहुत जरूरी है
 from config import *
 from database import * 
 from helpers import *
@@ -23,7 +24,7 @@ async def delete_after_delay(message, delay):
     except Exception:
         pass
 
-# --- प्रीमियम स्टेबिलिटी (वेब-सर्वर SSL सपोर्ट के साथ) ---
+# --- प्रीमियम स्टेबिलिटी ---
 async def start_web():
     app_web = web.Application()
     app_web.router.add_get('/', lambda r: web.Response(text="Bot is running"))
@@ -79,7 +80,6 @@ async def start(client, message):
     
     command = message.text.split(" ", 1)
     
-    # वेरिफिकेशन सफल होने पर मैसेज
     if len(command) > 1 and "verify_" in command[1]:
         await set_verify(user_id)
         await message.reply(
@@ -93,7 +93,6 @@ async def start(client, message):
     if len(command) > 1 and "getfile_" in command[1]:
         file_id = command[1].split("getfile_")[1]
         
-        # फोर्स सब्सक्राइब लॉजिक
         if FORCE_SUB_CHANNEL:
             try: await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
             except:
@@ -101,7 +100,6 @@ async def start(client, message):
                 await message.reply("⚠️ **पहले चैनल जॉइन करें! / Please join the channel first!**", reply_markup=types.InlineKeyboardMarkup(btn))
                 return
 
-        # वेरिफिकेशन चेक लॉजिक
         if user_id not in ADMIN_IDS and not await is_verified(user_id):
             short_link = await get_shortlink(f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}")
             buttons = [[types.InlineKeyboardButton("🔗 वेरीफाई करें / Verify Now", url=short_link)]]
@@ -115,19 +113,13 @@ async def start(client, message):
         file_doc = await get_file_by_id(file_id)
         if file_doc:
             try:
-                # फाइल भेजना
                 sent_msg = await client.copy_message(message.chat.id, DATABASE_CHANNEL, int(file_doc['message_id']))
-                
-                # सूचना मैसेज
                 warn_msg = await message.reply(
                     "⚠️ **आपकी फाइल 1 घंटे में अपने आप डिलीट हो जाएगी। कृपया इसे अभी सेव कर लें!**\n\n"
                     "**Your file will be deleted automatically in 1 hour. Please save it now!**"
                 )
-                
-                # ऑटो-डिलीट टास्क
                 asyncio.create_task(delete_after_delay(sent_msg, 3600))
                 asyncio.create_task(delete_after_delay(warn_msg, 3600))
-                
             except Exception as e:
                 await message.reply(f"❌ एरर: {e}")
         return
@@ -141,7 +133,11 @@ async def index_files(client, message):
     if file_info:
         await add_file(file_info)
         try:
-            await client.send_message(LOG_CHANNEL, f"✅ **इंडेक्स हुआ:**\n📂 {file_info['name']}")
+            await client.send_message(
+                LOG_CHANNEL, 
+                f"✅ **इंडेक्स हुआ / Updated:**\n📂 `{file_info['name']}`\n\n"
+                "यदि यह पुरानी फाइल थी, तो उसे रिप्लेस कर दिया गया है।"
+            )
         except Exception as e:
             logging.error(f"Log Channel Error: {e}")
 
@@ -164,4 +160,4 @@ if __name__ == "__main__":
     try: app.send_message(LOG_CHANNEL, "🚀 **बोट स्टार्ट हो गया है!**")
     except: pass
     idle()
-    
+                
