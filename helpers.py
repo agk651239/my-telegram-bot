@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 # नाम को साफ़ करने के लिए फंक्शन
 def clean_file_name(name: str) -> str:
+    if not name: return "Untitled" # खाली नाम होने पर डिफॉल्ट नाम
     # फाइल नाम से फालतू स्पेशल कैरेक्टर्स और इमोजी हटाना
     name = re.sub(r"[@#$|_\n\r]", " ", name) 
     # कोष्ठक और ब्रैकेट के अंदर का कंटेंट हटाना
@@ -18,7 +19,7 @@ def clean_file_name(name: str) -> str:
     name = re.sub(r"\.\.+", ".", name)
     # डबल स्पेस को सिंगल स्पेस में बदलना
     name = re.sub(r"\s+", " ", name)
-    return name.strip()
+    return name.strip()[:100] # नाम को 100 कैरेक्टर पर काट देना (डेटाबेस के लिए सेफ)
 
 # 1. शॉर्टनर लिंक जेनरेट करने के लिए फंक्शन
 async def get_shortlink(url: str) -> str:
@@ -31,7 +32,8 @@ async def get_shortlink(url: str) -> str:
             api_url = f"{base_url}/api"
             params = {"api": SHORTENER_API, "url": url}
             
-            async with session.get(api_url, params=params, timeout=10) as response:
+            # timeout को थोड़ा बढ़ाया है ताकि स्लो नेटवर्क पर एरर न आए
+            async with session.get(api_url, params=params, timeout=15) as response:
                 if response.status == 200:
                     data = await response.json()
                     # Response JSON check
@@ -61,27 +63,21 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     if message.caption:
         file_name = message.caption
     else:
-        if file_type == "video":
-            file_name = "Video"
-        elif file_type == "photo":
-            file_name = "Photo"
-        elif file_type == "audio":
-            file_name = "Audio"
-        else:
-            file_name = getattr(media, "file_name", "Document")
+        # यहाँ हमने getattr का बेहतर उपयोग किया है
+        file_name = getattr(media, "file_name", file_type.capitalize())
         
     # नाम को क्लीन करना
     clean_name = clean_file_name(file_name)
     
     # थंबनेल आईडी निकालने का सुरक्षित तरीका
     thumb_id = None
-    thumbs = getattr(media, "thumbs", None)
-
-    if thumbs:
-        thumb_id = thumbs[0].file_id
-    elif message.photo:
-        # Pyrogram में photo एक list होती है, आखिरी एलिमेंट बेस्ट क्वालिटी होती है
-        thumb_id = message.photo[-1].file_id if isinstance(message.photo, list) else message.photo.file_id
+    if message.photo:
+        thumb_id = message.photo[-1].file_id # आखिरी photo मतलब हाई क्वालिटी
+    else:
+        # document या video के थंबनेल की जाँच
+        thumbs = getattr(media, "thumbs", None)
+        if thumbs:
+            thumb_id = thumbs[0].file_id
         
     # यहाँ हमने सभी जरूरी जानकारी को डिक्शनरी में पैक कर दिया है
     return {
