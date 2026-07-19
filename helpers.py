@@ -69,15 +69,18 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     # नाम को क्लीन करना
     clean_name = clean_file_name(file_name)
     
-    # थंबनेल आईडी निकालने का सुरक्षित तरीका
+    # थंबनेल आईडी निकालने का सुरक्षित तरीका (सुधारित)
     thumb_id = None
     if message.photo:
-        thumb_id = message.photo[-1].file_id # आखिरी photo मतलब हाई क्वालिटी
-    else:
+        # यहाँ हमने चेक किया है कि क्या message.photo एक लिस्ट है
+        if isinstance(message.photo, list):
+            thumb_id = message.photo[-1].file_id
+        else:
+            thumb_id = message.photo.file_id
+    elif media and getattr(media, "thumbs", None):
         # document या video के थंबनेल की जाँच
-        thumbs = getattr(media, "thumbs", None)
-        if thumbs:
-            thumb_id = thumbs[0].file_id
+        thumbs = media.thumbs
+        thumb_id = thumbs[0].file_id
         
     # यहाँ हमने सभी जरूरी जानकारी को डिक्शनरी में पैक कर दिया है
     return {
