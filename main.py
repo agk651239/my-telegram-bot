@@ -132,7 +132,7 @@ async def start(client, message):
                 await message.reply(f"❌ एरर: {e}")
         return
     
-    # एल्बम हैंडलर (Naya Add - Bina purana delete kiye)
+    # एल्बम हैंडलर
     if len(command) > 1 and "getalbum_" in command[1]:
         group_id = command[1].split("getalbum_")[1]
         all_files = await db.files.find({"media_group_id": group_id}).to_list(length=None)
@@ -161,21 +161,20 @@ async def index_files(client, message):
 @app.on_message(filters.text & ~filters.command(["start", "broadcast", "stats"]))
 async def auto_search(client, message):
     query = message.text
-    # डेटाबेस से फाइल सर्च करें
     files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=10)
     if not files: 
         return await message.reply("❌ कोई फाइल नहीं मिली। / No file found.")
     
-    # Check if files share the same media_group_id for Album
+    # Check if first file is part of an album
     first_file = files[0]
     group_id = first_file.get("media_group_id")
     
-    if group_id and all(f.get("media_group_id") == group_id for f in files):
+    if group_id:
         album_link = f"https://t.me/{BOT_USERNAME}?start=getalbum_{group_id}"
         btn = [[types.InlineKeyboardButton("📥 Album प्राप्त करें", url=album_link)]]
         await message.reply(f"📂 **{first_file['name']}**", reply_markup=types.InlineKeyboardMarkup(btn))
     else:
-        # रिजल्ट्स दिखाएं - बटन के साथ
+        # Normal display
         for f in files:
             unique_link = f"https://t.me/{BOT_USERNAME}?start=getfile_{f['_id']}"
             btn = [[types.InlineKeyboardButton("📥 फाइल प्राप्त करें (Get File)", url=unique_link)]]
