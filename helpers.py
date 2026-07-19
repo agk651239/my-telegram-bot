@@ -80,7 +80,8 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     if thumbs:
         thumb_id = thumbs[0].file_id
     elif message.photo:
-        thumb_id = message.photo.file_id
+        # Pyrogram में photo एक list होती है, आखिरी एलिमेंट बेस्ट क्वालिटी होती है
+        thumb_id = message.photo[-1].file_id if isinstance(message.photo, list) else message.photo.file_id
         
     # यहाँ हमने सभी जरूरी जानकारी को डिक्शनरी में पैक कर दिया है
     return {
