@@ -81,6 +81,6 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
         "file_size": getattr(media, "file_size", 0),
         "thumb_id": thumb_id,
         "message_id": message.id,
-        "media_group_id": getattr(message, "media_group_id", None) # Ye line add ki hai album ke liye
+        "media_group_id": getattr(message, "media_group_id", None) # Ye line album ke liye zaroori hai
     }
     
