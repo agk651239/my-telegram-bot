@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 # नाम को साफ़ करने के लिए फंक्शन
 def clean_file_name(name: str) -> str:
-    if not name: return "Untitled" # खाली नाम होने पर डिफॉल्ट नाम
+    if not name: return "Untitled" 
     # फाइल नाम से फालतू स्पेशल कैरेक्टर्स और इमोजी हटाना
     name = re.sub(r"[@#$|_\n\r]", " ", name) 
     # कोष्ठक और ब्रैकेट के अंदर का कंटेंट हटाना
@@ -19,7 +19,7 @@ def clean_file_name(name: str) -> str:
     name = re.sub(r"\.\.+", ".", name)
     # डबल स्पेस को सिंगल स्पेस में बदलना
     name = re.sub(r"\s+", " ", name)
-    return name.strip()[:100] # नाम को 100 कैरेक्टर पर काट देना (डेटाबेस के लिए सेफ)
+    return name.strip()[:100]
 
 # 1. शॉर्टनर लिंक जेनरेट करने के लिए फंक्शन
 async def get_shortlink(url: str) -> str:
@@ -32,11 +32,9 @@ async def get_shortlink(url: str) -> str:
             api_url = f"{base_url}/api"
             params = {"api": SHORTENER_API, "url": url}
             
-            # timeout को थोड़ा बढ़ाया है ताकि स्लो नेटवर्क पर एरर न आए
             async with session.get(api_url, params=params, timeout=15) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # Response JSON check
                     shortened = data.get("shortenedUrl") or data.get("shorturl") or data.get("link")
                     return shortened if shortened else url
                 else:
@@ -63,26 +61,26 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     if message.caption:
         file_name = message.caption
     else:
-        # यहाँ हमने getattr का बेहतर उपयोग किया है
+        # यहाँ getattr से फाइल नाम निकाला गया है, यदि नहीं मिलता तो file_type का इस्तेमाल होगा
         file_name = getattr(media, "file_name", file_type.capitalize())
         
     # नाम को क्लीन करना
     clean_name = clean_file_name(file_name)
     
-    # थंबनेल आईडी निकालने का सुरक्षित तरीका (सुधारित)
+    # थंबनेल आईडी निकालने का सुरक्षित तरीका
     thumb_id = None
     if message.photo:
-        # यहाँ हमने चेक किया है कि क्या message.photo एक लिस्ट है
         if isinstance(message.photo, list):
             thumb_id = message.photo[-1].file_id
         else:
             thumb_id = message.photo.file_id
     elif media and getattr(media, "thumbs", None):
-        # document या video के थंबनेल की जाँच
         thumbs = media.thumbs
-        thumb_id = thumbs[0].file_id
+        # सुरक्षित थंबनेल इंडेक्सिंग
+        if thumbs:
+            thumb_id = thumbs[-1].file_id
         
-    # यहाँ हमने सभी जरूरी जानकारी को डिक्शनरी में पैक कर दिया है
+    # सभी जरूरी जानकारी को डिक्शनरी में पैक करना
     return {
         "file_id": media.file_id, 
         "name": clean_name,
