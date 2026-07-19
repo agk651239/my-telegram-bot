@@ -2,6 +2,7 @@ from pyrogram import Client, filters, types, idle
 import asyncio
 import aiohttp
 import logging
+from humanfriendly import format_size
 from config import *
 from database import * 
 from helpers import *
@@ -14,6 +15,9 @@ app = Client(
     api_hash=API_HASH, 
     bot_token=BOT_TOKEN
 )
+
+# एल्बम प्रोसेसिंग के लिए सेट
+processed_albums = set()
 
 # --- फंक्शन: मैसेज ऑटो-डिलीट (3600 सेकंड = 1 घंटा) ---
 async def delete_after_delay(message, delay):
@@ -29,7 +33,7 @@ async def start_web():
     app_web.router.add_get('/', lambda r: web.Response(text="Bot is running"))
     
     protocol = "https" if HAS_SSL else "http"
-    logger.info(f"🌐 वेब-सर्वर {protocol}://0.0.0.0:{PORT} पर शुरू हो रहा है।")
+    logging.info(f"🌐 वेब-सर्वर {protocol}://0.0.0.0:{PORT} पर शुरू हो रहा है।")
     
     runner = web.AppRunner(app_web)
     await runner.setup()
@@ -79,7 +83,6 @@ async def start(client, message):
     
     command = message.text.split(" ", 1)
     
-    # वेरिफिकेशन सफल होने पर मैसेज
     if len(command) > 1 and "verify_" in command[1]:
         await set_verify(user_id)
         await message.reply(
@@ -93,7 +96,6 @@ async def start(client, message):
     if len(command) > 1 and "getfile_" in command[1]:
         file_id = command[1].split("getfile_")[1]
         
-        # फोर्स सब्सक्राइब लॉजिक
         if FORCE_SUB_CHANNEL:
             try: await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
             except:
@@ -101,7 +103,6 @@ async def start(client, message):
                 await message.reply("⚠️ **पहले चैनल जॉइन करें! / Please join the channel first!**", reply_markup=types.InlineKeyboardMarkup(btn))
                 return
 
-        # वेरिफिकेशन चेक लॉजिक
         if user_id not in ADMIN_IDS and not await is_verified(user_id):
             short_link = await get_shortlink(f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}")
             buttons = [[types.InlineKeyboardButton("🔗 वेरीफाई करें / Verify Now", url=short_link)]]
@@ -115,24 +116,17 @@ async def start(client, message):
         file_doc = await get_file_by_id(file_id)
         if file_doc:
             try:
-                # फाइल भेजना
                 sent_msg = await client.copy_message(message.chat.id, DATABASE_CHANNEL, int(file_doc['message_id']))
-                
-                # सूचना मैसेज
                 warn_msg = await message.reply(
                     "⚠️ **आपकी फाइल 1 घंटे में अपने आप डिलीट हो जाएगी। कृपया इसे अभी सेव कर लें!**\n\n"
                     "**Your file will be deleted automatically in 1 hour. Please save it now!**"
                 )
-                
-                # ऑटो-डिलीट टास्क
                 asyncio.create_task(delete_after_delay(sent_msg, 3600))
                 asyncio.create_task(delete_after_delay(warn_msg, 3600))
-                
             except Exception as e:
                 await message.reply(f"❌ एरर: {e}")
         return
     
-    # एल्बम हैंडलर
     if len(command) > 1 and "getalbum_" in command[1]:
         group_id = command[1].split("getalbum_")[1]
         all_files = await db.files.find({"media_group_id": group_id}).to_list(length=None)
@@ -146,37 +140,60 @@ async def start(client, message):
         
     await message.reply("बोट चालू है! सर्च करने के लिए फाइल का नाम लिखें।\nBot is active! Send file name to search.")
 
-# --- 4. फाइल इंडेक्सिंग (Updated for Album Caption) ---
+# --- 4. फाइल इंडेक्सिंग ---
 @app.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video | filters.photo))
 async def index_files(client, message):
-    # Agar message mein caption nahi hai aur album hai, toh group ka caption dhoondein
-    if not message.caption and getattr(message, "media_group_id", None):
+
+    if message.media_group_id:
+        if message.media_group_id in processed_albums:
+            return
+        processed_albums.add(message.media_group_id)
+
+        await asyncio.sleep(2)
+
         try:
-            # Yahan await ka use kiya hai warning hatane ke liye
-            async for msg in client.get_media_group(message.chat.id, message.id):
-                if msg.caption:
-                    message.caption = msg.caption
+            media_group = await client.get_media_group(message.chat.id, message.id)
+            caption = None
+            for m in media_group:
+                if m.caption:
+                    caption = m.caption
                     break
-        except Exception:
-            pass
             
+            for m in media_group:
+                if caption:
+                    m.caption = caption
+                file_info = await get_file_info(m)
+                if file_info:
+                    await add_file(file_info)
+                    try:
+                        await client.send_message(LOG_CHANNEL, f"✅ इंडेक्स हुआ\n📂 {file_info['name']}")
+                    except:
+                        pass
+        except Exception as e:
+            logging.error(e)
+        finally:
+            processed_albums.discard(message.media_group_id)
+        return
+
     file_info = await get_file_info(message)
     if file_info:
         await add_file(file_info)
         try:
-            await client.send_message(LOG_CHANNEL, f"✅ **इंडेक्स हुआ:**\n📂 {file_info['name']}")
-        except Exception as e:
-            logging.error(f"Log Channel Error: {e}")
+            await client.send_message(LOG_CHANNEL, f"✅ इंडेक्स हुआ\n📂 {file_info['name']}")
+        except:
+            pass
 
-# --- 5. ऑटो सर्च ---
+# --- 5. ऑटो सर्च (Admin Access Only) ---
 @app.on_message(filters.text & ~filters.command(["start", "broadcast", "stats"]))
 async def auto_search(client, message):
+    if message.from_user.id not in ADMIN_IDS:
+        return await message.reply("❌ केवल एडमिन ही इस बॉट में सर्च कर सकते हैं।")
+
     query = message.text
     files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=10)
     if not files: 
         return await message.reply("❌ कोई फाइल नहीं मिली। / No file found.")
     
-    # Check if first file is part of an album
     first_file = files[0]
     group_id = first_file.get("media_group_id")
     
@@ -185,11 +202,12 @@ async def auto_search(client, message):
         btn = [[types.InlineKeyboardButton("📥 Album प्राप्त करें", url=album_link)]]
         await message.reply(f"📂 **{first_file['name']}**", reply_markup=types.InlineKeyboardMarkup(btn))
     else:
-        # Normal display
         for f in files:
             unique_link = f"https://t.me/{BOT_USERNAME}?start=getfile_{f['_id']}"
+            # फाइल साइज फॉर्मेट करना
+            file_size = format_size(f.get("file_size", 0))
             btn = [[types.InlineKeyboardButton("📥 फाइल प्राप्त करें (Get File)", url=unique_link)]]
-            await message.reply(f"📂 **{f['name']}**", reply_markup=types.InlineKeyboardMarkup(btn))
+            await message.reply(f"📂 **{f['name']}**\n💾 **Size:** {file_size}", reply_markup=types.InlineKeyboardMarkup(btn))
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
