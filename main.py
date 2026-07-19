@@ -257,23 +257,29 @@ async def auto_search(client, message):
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
+
     loop.run_until_complete(create_indexes())
     loop.create_task(start_web())
     loop.create_task(keep_alive())
 
-    app.start()
-
     try:
+        app.start()
+
         loop.run_until_complete(app.get_chat(LOG_CHANNEL))
         print("✅ Log channel access verified!")
-        
+
         loop.run_until_complete(
-            app.send_message(LOG_CHANNEL, "🚀 Bot Started Successfully!")
+            app.send_message(
+                LOG_CHANNEL,
+                "🚀 Bot Started Successfully!"
+            )
         )
-        
+
         idle()
+
     except Exception as e:
         print(f"❌ Error: {e}")
+
     finally:
         app.stop()
-            
+        
