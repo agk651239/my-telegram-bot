@@ -56,12 +56,17 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     else: file_type = "photo"
 
     # फाइल का नाम निकालना
-    raw_name = getattr(media, "file_name", None)
-    if not raw_name:
-        # कैप्शन को प्राथमिकता दें, नहीं तो फाइल टाइप का इस्तेमाल करें
-        file_name = message.caption if message.caption else f"{file_type.capitalize()}_File"
+    if message.caption:
+        file_name = message.caption
     else:
-        file_name = raw_name
+        if file_type == "video":
+            file_name = "Video"
+        elif file_type == "photo":
+            file_name = "Photo"
+        elif file_type == "audio":
+            file_name = "Audio"
+        else:
+            file_name = getattr(media, "file_name", "Document")
         
     # नाम को क्लीन करना
     clean_name = clean_file_name(file_name)
@@ -81,6 +86,6 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
         "file_size": getattr(media, "file_size", 0),
         "thumb_id": thumb_id,
         "message_id": message.id,
-        "media_group_id": getattr(message, "media_group_id", None) # Ye line album ke liye zaroori hai
+        "media_group_id": getattr(message, "media_group_id", None) 
     }
     
