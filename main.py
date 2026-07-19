@@ -8,6 +8,12 @@ from database import *
 from helpers import *
 from aiohttp import web
 
+# लॉगिंग सेटअप
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 # बोट क्लाइंट सेटअप
 app = Client(
     "bot_session", 
@@ -129,13 +135,37 @@ async def start(client, message):
     
     if len(command) > 1 and "getalbum_" in command[1]:
         group_id = command[1].split("getalbum_")[1]
-        all_files = await db.files.find({"media_group_id": group_id}).to_list(length=None)
-        if all_files:
-            media_group = []
-            for f in all_files:
-                if f.get("file_type") == "photo": media_group.append(types.InputMediaPhoto(f['file_id']))
-                else: media_group.append(types.InputMediaVideo(f['file_id']))
-            await client.send_media_group(message.chat.id, media=media_group)
+
+        all_files = await db.files.find(
+            {"media_group_id": group_id}
+        ).sort("message_id", 1).to_list(length=None)
+
+        if not all_files:
+            return await message.reply("❌ Album नहीं मिला।")
+
+        media_group = []
+
+        for f in all_files:
+            if f["file_type"] == "photo":
+                media_group.append(
+                    types.InputMediaPhoto(
+                        media=f["file_id"]
+                    )
+                )
+            elif f["file_type"] == "video":
+                media_group.append(
+                    types.InputMediaVideo(
+                        media=f["file_id"]
+                    )
+                )
+        
+        if not media_group:
+            return await message.reply("❌ Album में कोई Video या Photo नहीं मिला।")
+
+        await client.send_media_group(
+            chat_id=message.chat.id,
+            media=media_group
+        )
         return
         
     await message.reply("बोट चालू है! सर्च करने के लिए फाइल का नाम लिखें।\nBot is active! Send file name to search.")
@@ -164,6 +194,7 @@ async def index_files(client, message):
                     m.caption = caption
                 file_info = await get_file_info(m)
                 if file_info:
+                    file_info["media_group_id"] = message.media_group_id
                     await add_file(file_info)
                     try:
                         await client.send_message(LOG_CHANNEL, f"✅ इंडेक्स हुआ\n📂 {file_info['name']}")
@@ -204,7 +235,6 @@ async def auto_search(client, message):
     else:
         for f in files:
             unique_link = f"https://t.me/{BOT_USERNAME}?start=getfile_{f['_id']}"
-            # फाइल साइज फॉर्मेट करना
             file_size = format_size(f.get("file_size", 0))
             btn = [[types.InlineKeyboardButton("📥 फाइल प्राप्त करें (Get File)", url=unique_link)]]
             await message.reply(f"📂 **{f['name']}**\n💾 **Size:** {file_size}", reply_markup=types.InlineKeyboardMarkup(btn))
@@ -215,7 +245,12 @@ if __name__ == "__main__":
     loop.create_task(start_web())
     loop.create_task(keep_alive())
     app.start()
-    try: app.send_message(LOG_CHANNEL, "🚀 **बोट स्टार्ट हो गया है!**")
-    except: pass
+    try:
+        app.loop.run_until_complete(
+            app.send_message(LOG_CHANNEL, "🚀 Bot Started Successfully!")
+        )
+    except Exception as e:
+        logging.error(e)
     idle()
+    app.stop()
     
