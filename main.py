@@ -132,7 +132,7 @@ async def start(client, message):
                 await message.reply(f"❌ एरर: {e}")
         return
     
-    # एल्बम हैंडलर (Naya Add)
+    # एल्बम हैंडलर (Naya Add - Bina purana delete kiye)
     if len(command) > 1 and "getalbum_" in command[1]:
         group_id = command[1].split("getalbum_")[1]
         all_files = await db.files.find({"media_group_id": group_id}).to_list(length=None)
