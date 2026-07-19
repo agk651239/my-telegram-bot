@@ -20,12 +20,22 @@ ADMIN_IDS = [int(x.strip()) for x in admin_ids_raw.split(",") if x.strip().isdig
 DATABASE_CHANNEL = int(os.environ.get("DATABASE_CHANNEL", 0))
 LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", 0))
 
-# FORCE_SUB_CHANNEL: यहाँ सुधार किया है (अब यह स्ट्रिंग या आईडी दोनों ले सकता है)
+# FORCE_SUB_CHANNEL सेटिंग
 FORCE_SUB_CHANNEL_RAW = os.environ.get("FORCE_SUB_CHANNEL", "0")
 if FORCE_SUB_CHANNEL_RAW.isdigit():
     FORCE_SUB_CHANNEL = int(FORCE_SUB_CHANNEL_RAW)
 else:
-    FORCE_SUB_CHANNEL = FORCE_SUB_CHANNEL_RAW # यूजरनेम के लिए
+    FORCE_SUB_CHANNEL = FORCE_SUB_CHANNEL_RAW 
+
+# --- नई सेटिंग्स जोड़ी गई हैं ---
+# 1. Force Sub को ON/OFF करने के लिए
+FORCE_SUB_ENABLED = os.environ.get("FORCE_SUB_ENABLED", "True").lower() == "true"
+
+# 2. वेलकम मैसेज मोड (बोट स्टार्ट होने पर मैसेज दिखाए या नहीं)
+START_MESSAGE = os.environ.get("START_MESSAGE", "नमस्ते! मैं फाइल सर्च बॉट हूँ।")
+
+# 3. सर्च रिजल्ट लिमिट (एक बार में कितनी फाइलें दिखें)
+SEARCH_LIMIT = int(os.environ.get("SEARCH_LIMIT", 10))
 
 # Shortener Settings
 SHORTENER_API = os.environ.get("SHORTENER_API", "")
@@ -33,7 +43,6 @@ SHORTENER_WEBSITE = os.environ.get("SHORTENER_WEBSITE", "")
 
 # Server Port & SSL Settings
 PORT = int(os.environ.get("PORT", 10000))
-# 'True' स्ट्रिंग को बुलियन True में बदलने के लिए
 HAS_SSL = os.environ.get("HAS_SSL", "False").lower() == "true"
 
 # Time Settings (सेकंड्स में)
