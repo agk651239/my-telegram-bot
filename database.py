@@ -1,6 +1,7 @@
 import time
 import logging
 from bson import ObjectId
+from pymongo import TEXT
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import DATABASE_URI, DATABASE_NAME, ADMIN_IDS, VERIFY_EXPIRE_TIME
 
@@ -11,20 +12,28 @@ logger = logging.getLogger(__name__)
 client = AsyncIOMotorClient(DATABASE_URI)
 db = client[DATABASE_NAME]
 
-# इंडेक्स बनाना (एरर से बचने के लिए पुराने इंडेक्स को हटाकर नया बनाने वाला लॉजिक)
+# इंडेक्स बनाना
 async def create_indexes():
     try:
-        # अगर पुराना 'name_text' इंडेक्स मौजूद है, तो उसे हटाएं ताकि नया इंडेक्स बिना एरर बने
+        # इंडेक्स चेक करके पुराना इंडेक्स हटाने का लॉजिक
         try:
-            await db.files.drop_index("name_text")
-        except:
+            indexes = await db.files.index_information()
+            if "name_text" in indexes:
+                await db.files.drop_index("name_text")
+        except Exception:
             pass
             
         # नाम पर टेक्स्ट इंडेक्स
-        await db.files.create_index([("name", "text")], default_language='none')
+        await db.files.create_index([("name", TEXT)], default_language='none')
+        
+        # media_group_id और message_id इंडेक्स
+        await db.files.create_index("media_group_id")
+        await db.files.create_index("message_id")
+        
         # यूजर आईडी के लिए इंडेक्स
         await db.users.create_index("user_id", unique=True)
-        # फाइल के लिए यूनिक इंडेक्स ताकि एक ही फाइल बार-बार न जुड़े
+        
+        # फाइल के लिए यूनिक इंडेक्स
         try:
             await db.files.create_index("file_id", unique=True)
         except:
@@ -58,23 +67,27 @@ async def set_verify(user_id):
     except Exception as e: 
         logger.error(f"❌ वेरिफिकेशन अपडेट एरर: {e}")
 
-# फाइल को डेटाबेस में जोड़ना (duplicate handling add kiya hai)
+# फाइल को डेटाबेस में जोड़ना (Update logic as requested)
 async def add_file(d):
     if not d or "file_id" not in d: 
         return
     try:
-        # update_one ka use kiya hai upsert=True ke saath, isse duplicate entry nahi banegi
         await db.files.update_one(
             {"file_id": d.get("file_id")},
-            {"$set": {
-                "name": d.get("name"), 
-                "file_type": d.get("file_type"), 
-                "file_size": d.get("file_size", 0), 
-                "thumb_id": d.get("thumb_id"), 
-                "message_id": d.get("message_id"),
-                "media_group_id": d.get("media_group_id"), # Ye field album ke liye zaroori hai
-                "created_at": time.time()
-            }},
+            {
+                "$set": {
+                    "name": d.get("name"),
+                    "file_type": d.get("file_type"),
+                    "file_size": d.get("file_size", 0),
+                    "thumb_id": d.get("thumb_id"),
+                    "message_id": d.get("message_id"),
+                    "media_group_id": d.get("media_group_id")
+                },
+                "$setOnInsert": {
+                    "file_id": d.get("file_id"),
+                    "created_at": time.time()
+                }
+            },
             upsert=True
         )
         logger.info(f"✅ फाइल सेव या अपडेट हुई: {d.get('name')}")
@@ -95,10 +108,8 @@ async def add_user(user_id):
 # फाइल को आईडी या _id से ढूंढना
 async def get_file_by_id(fid):
     try:
-        # अगर fid एक वैध ObjectId है (जो सर्च से मिलेगा)
         if ObjectId.is_valid(fid):
             return await db.files.find_one({"_id": ObjectId(fid)})
-        # अन्यथा file_id से सर्च करें
         return await db.files.find_one({"file_id": fid})
     except Exception as e:
         logger.error(f"❌ फाइल फेच एरर: {e}")
