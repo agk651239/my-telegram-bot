@@ -15,6 +15,10 @@ db = client[DATABASE_NAME]
 # इंडेक्स बनाना
 async def create_indexes():
     try:
+        # पिंग करके चेक करें कि डेटाबेस चालू है
+        await db.command("ping")
+        logger.info("✅ डेटाबेस कनेक्शन सफल!")
+
         # इंडेक्स चेक करके पुराना इंडेक्स हटाने का लॉजिक
         try:
             indexes = await db.files.index_information()
@@ -33,14 +37,15 @@ async def create_indexes():
         # यूजर आईडी के लिए इंडेक्स
         await db.users.create_index("user_id", unique=True)
         
-        # फाइल के लिए यूनिक इंडेक्स
+        # फाइल के लिए यूनिक इंडेक्स (Error handling के साथ)
         try:
             await db.files.create_index("file_id", unique=True)
-        except:
+        except Exception:
             pass
+            
         logger.info("✅ डेटाबेस इंडेक्स सफलतापूर्वक तैयार हैं।")
     except Exception as e:
-        logger.error(f"❌ इंडेक्स क्रिएशन एरर: {e}")
+        logger.error(f"❌ डेटाबेस कनेक्शन या इंडेक्स एरर: {e}")
 
 # वेरिफिकेशन चेक करना
 async def is_verified(user_id):
@@ -49,6 +54,7 @@ async def is_verified(user_id):
     try:
         user = await db.users.find_one({"user_id": user_id})
         if user and user.get("expire_at"):
+            # यदि समय अभी से ज्यादा है, तो वेरिफाइड है
             return user["expire_at"] > time.time()
         return False
     except Exception as e: 
@@ -67,31 +73,33 @@ async def set_verify(user_id):
     except Exception as e: 
         logger.error(f"❌ वेरिफिकेशन अपडेट एरर: {e}")
 
-# फाइल को डेटाबेस में जोड़ना (Update logic as requested)
+# फाइल को डेटाबेस में जोड़ना
 async def add_file(d):
     if not d or "file_id" not in d: 
         return
     try:
+        # नाम को सुरक्षित रखने के लिए None चेक
+        file_name = d.get("name") or "Untitled"
+        
         await db.files.update_one(
             {"file_id": d.get("file_id")},
             {
                 "$set": {
-                    "name": d.get("name"),
+                    "name": file_name,
                     "file_type": d.get("file_type"),
                     "file_size": d.get("file_size", 0),
                     "thumb_id": d.get("thumb_id"),
                     "message_id": d.get("message_id"),
                     "media_group_id": d.get("media_group_id"),
-                    "updated_at": time.time()  # फाइल अपडेट होने का समय
+                    "updated_at": time.time()
                 },
                 "$setOnInsert": {
-                    "file_id": d.get("file_id"),
-                    "created_at": time.time()  # फाइल बनने का समय
+                    "created_at": time.time()
                 }
             },
             upsert=True
         )
-        logger.info(f"✅ फाइल सेव या अपडेट हुई: {d.get('name')}")
+        logger.info(f"✅ फाइल सेव या अपडेट हुई: {file_name}")
     except Exception as e: 
         logger.error(f"❌ फाइल ऐड करने में एरर: {e}")
 
