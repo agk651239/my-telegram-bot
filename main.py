@@ -134,7 +134,7 @@ async def start(client, message):
         return
     
     if len(command) > 1 and "getalbum_" in command[1]:
-        group_id = command[1].split("getalbum_")[1]
+        group_id = int(command[1].split("getalbum_")[1])
 
         all_files = await db.files.find(
             {"media_group_id": group_id}
