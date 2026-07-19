@@ -14,7 +14,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# बोट क्लाइंट सेटअप - in_memory=True जोड़ा गया है ताकि बार-बार सेशन फाइल की वजह से ब्लॉक न हो
+# बोट क्लाइंट सेटअप
 app = Client(
     "bot_session", 
     api_id=API_ID, 
@@ -236,50 +236,44 @@ async def auto_search(client, message):
         return await message.reply("❌ केवल एडमिन ही इस बॉट में सर्च कर सकते हैं।")
 
     query = message.text
-    files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=10)
+    # 30 की लिमिट ताकि सारे बटन आ सकें
+    files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=30)
     if not files: 
         return await message.reply("❌ कोई फाइल नहीं मिली। / No file found.")
     
-    first_file = files[0]
-    group_id = first_file.get("media_group_id")
+    buttons = []
+    processed_groups = set()
     
-    if group_id:
-        album_link = f"https://t.me/{BOT_USERNAME}?start=getalbum_{group_id}"
-        btn = [[types.InlineKeyboardButton("📥 Album प्राप्त करें", url=album_link)]]
-        await message.reply(f"📂 **{first_file['name']}**", reply_markup=types.InlineKeyboardMarkup(btn))
-    else:
-        for f in files:
+    for f in files:
+        if f.get("media_group_id"):
+            if f["media_group_id"] not in processed_groups:
+                album_link = f"https://t.me/{BOT_USERNAME}?start=getalbum_{f['media_group_id']}"
+                btn = [types.InlineKeyboardButton(f"📥 Album: {f['name']}", url=album_link)]
+                buttons.append(btn)
+                processed_groups.add(f["media_group_id"])
+        else:
             unique_link = f"https://t.me/{BOT_USERNAME}?start=getfile_{f['_id']}"
             file_size = format_size(f.get("file_size", 0))
-            btn = [[types.InlineKeyboardButton("📥 फाइल प्राप्त करें (Get File)", url=unique_link)]]
-            await message.reply(f"📂 **{f['name']}**\n💾 **Size:** {file_size}", reply_markup=types.InlineKeyboardMarkup(btn))
+            btn = [types.InlineKeyboardButton(f"📥 File: {f['name']} ({file_size})", url=unique_link)]
+            buttons.append(btn)
+
+    await message.reply(f"📂 **'{query}' के लिए रिजल्ट्स:**", reply_markup=types.InlineKeyboardMarkup(buttons))
 
 # --- स्टार्टअप सीक्वेंस ---
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    
-    # 1. पहले वेब-सर्वर को रजिस्टर करें ताकि रेंडर को Port मिल जाए
     loop.create_task(start_web())
-    
-    # 2. डेटाबेस इंडेक्सिंग (जरूरी है)
     loop.run_until_complete(create_indexes())
     
     try:
-        # 3. बोट स्टार्ट करें
         app.start()
         print("✅ Bot is online!")
-        
-        # लॉग चैनल वेरिफिकेशन
         try:
             loop.run_until_complete(app.get_chat(LOG_CHANNEL))
             loop.run_until_complete(app.send_message(LOG_CHANNEL, "🚀 Bot Started Successfully!"))
         except Exception as e:
             print(f"⚠️ Log Channel Access Warning: {e}")
-        
-        # कीप अलाइव को लूप में डालें
         loop.create_task(keep_alive())
-        
-        # बोट को रनिंग मोड में रखें
         idle()
     except Exception as e:
         print(f"❌ Error: {e}")
