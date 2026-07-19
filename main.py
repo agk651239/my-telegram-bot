@@ -147,8 +147,6 @@ async def start(client, message):
         return
     
     if len(command) > 1 and "getalbum_" in command[1]:
-        
-        # --- फोर्स सब और वेरिफिकेशन चेक ---
         if FORCE_SUB_CHANNEL:
             try: await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
             except:
@@ -255,31 +253,32 @@ async def auto_search(client, message):
             btn = [[types.InlineKeyboardButton("📥 फाइल प्राप्त करें (Get File)", url=unique_link)]]
             await message.reply(f"📂 **{f['name']}**\n💾 **Size:** {file_size}", reply_markup=types.InlineKeyboardMarkup(btn))
 
+# --- स्टार्टअप सीक्वेंस में सुधार ---
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-
-    loop.run_until_complete(create_indexes())
+    
+    # 1. पहले वेब-सर्वर को रजिस्टर करें
     loop.create_task(start_web())
-    loop.create_task(keep_alive())
-
+    
+    # 2. इंडेक्सिंग और क्लाइंट स्टार्ट
+    loop.run_until_complete(create_indexes())
+    
+    # 3. बोट स्टार्ट करें
     try:
         app.start()
-
+        print("✅ Bot is online!")
+        
+        # लॉगिंग के लिए चेक
         loop.run_until_complete(app.get_chat(LOG_CHANNEL))
-        print("✅ Log channel access verified!")
-
-        loop.run_until_complete(
-            app.send_message(
-                LOG_CHANNEL,
-                "🚀 Bot Started Successfully!"
-            )
-        )
-
+        loop.run_until_complete(app.send_message(LOG_CHANNEL, "🚀 Bot Started Successfully!"))
+        
+        # कीप अलाइव को लूप में डालें
+        loop.create_task(keep_alive())
+        
+        # बोट को रनिंग मोड में रखें
         idle()
-
     except Exception as e:
         print(f"❌ Error: {e}")
-
     finally:
         app.stop()
         
