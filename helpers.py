@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 # नाम को साफ़ करने के लिए फंक्शन
 def clean_file_name(name: str) -> str:
     # फाइल नाम से फालतू स्पेशल कैरेक्टर्स और इमोजी हटाना
-    name = re.sub(r"[@#$\n\r]", " ", name) 
+    name = re.sub(r"[@#$|_\n\r]", " ", name) 
+    # कोष्ठक और ब्रैकेट के अंदर का कंटेंट हटाना
+    name = re.sub(r"\[.*?\]|\(.*?\)", "", name)
     # फाइल के एक्स्टेंशन से पहले के फालतू डॉट्स हटाना
     name = re.sub(r"\.\.+", ".", name)
     # डबल स्पेस को सिंगल स्पेस में बदलना
@@ -73,10 +75,12 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     
     # थंबनेल आईडी निकालने का सुरक्षित तरीका
     thumb_id = None
-    if getattr(media, "thumbs", None):
-        thumb_id = media.thumbs[0].file_id
+    thumbs = getattr(media, "thumbs", None)
+
+    if thumbs:
+        thumb_id = thumbs[0].file_id
     elif message.photo:
-        thumb_id = message.photo[-1].file_id
+        thumb_id = message.photo.file_id
         
     # यहाँ हमने सभी जरूरी जानकारी को डिक्शनरी में पैक कर दिया है
     return {
