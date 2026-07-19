@@ -244,13 +244,23 @@ if __name__ == "__main__":
     loop.run_until_complete(create_indexes())
     loop.create_task(start_web())
     loop.create_task(keep_alive())
+    
     app.start()
+    
+    # लॉगर चैनल वेरिफिकेशन
     try:
-        app.loop.run_until_complete(
+        loop.run_until_complete(app.get_chat(LOG_CHANNEL))
+        print("✅ Log channel access verified!")
+    except Exception as e:
+        print(f"❌ Cannot access log channel: {e}")
+        
+    try:
+        loop.run_until_complete(
             app.send_message(LOG_CHANNEL, "🚀 Bot Started Successfully!")
         )
     except Exception as e:
         logging.error(e)
+        
     idle()
     app.stop()
     
