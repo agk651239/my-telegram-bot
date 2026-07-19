@@ -72,6 +72,7 @@ async def add_file(d):
                 "file_size": d.get("file_size", 0), 
                 "thumb_id": d.get("thumb_id"), 
                 "message_id": d.get("message_id"),
+                "media_group_id": d.get("media_group_id"), # Ye naya field album ke liye zaroori hai
                 "created_at": time.time()
             }},
             upsert=True
