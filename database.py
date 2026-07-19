@@ -1,7 +1,7 @@
 import time
 import logging
 from bson import ObjectId
-from pymongo import TEXT
+from pymongo import TEXT, ASCENDING
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import DATABASE_URI, DATABASE_NAME, ADMIN_IDS, VERIFY_EXPIRE_TIME
 
@@ -27,8 +27,11 @@ async def create_indexes():
         except Exception:
             pass
             
-        # नाम पर टेक्स्ट इंडेक्स
+        # नाम पर टेक्स्ट इंडेक्स (Text Index)
         await db.files.create_index([("name", TEXT)], default_language='none')
+        
+        # सर्च को फास्ट बनाने के लिए नाम पर साधारण इंडेक्स (Regex के लिए सबसे अच्छा)
+        await db.files.create_index([("name", ASCENDING)])
         
         # media_group_id और message_id इंडेक्स
         await db.files.create_index("media_group_id")
