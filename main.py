@@ -14,12 +14,13 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# बोट क्लाइंट सेटअप
+# बोट क्लाइंट सेटअप - in_memory=True जोड़ा गया है ताकि बार-बार सेशन फाइल की वजह से ब्लॉक न हो
 app = Client(
     "bot_session", 
     api_id=API_ID, 
     api_hash=API_HASH, 
-    bot_token=BOT_TOKEN
+    bot_token=BOT_TOKEN,
+    in_memory=True 
 )
 
 # एल्बम प्रोसेसिंग के लिए सेट
@@ -253,24 +254,27 @@ async def auto_search(client, message):
             btn = [[types.InlineKeyboardButton("📥 फाइल प्राप्त करें (Get File)", url=unique_link)]]
             await message.reply(f"📂 **{f['name']}**\n💾 **Size:** {file_size}", reply_markup=types.InlineKeyboardMarkup(btn))
 
-# --- स्टार्टअप सीक्वेंस में सुधार ---
+# --- स्टार्टअप सीक्वेंस ---
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     
-    # 1. पहले वेब-सर्वर को रजिस्टर करें
+    # 1. पहले वेब-सर्वर को रजिस्टर करें ताकि रेंडर को Port मिल जाए
     loop.create_task(start_web())
     
-    # 2. इंडेक्सिंग और क्लाइंट स्टार्ट
+    # 2. डेटाबेस इंडेक्सिंग (जरूरी है)
     loop.run_until_complete(create_indexes())
     
-    # 3. बोट स्टार्ट करें
     try:
+        # 3. बोट स्टार्ट करें
         app.start()
         print("✅ Bot is online!")
         
-        # लॉगिंग के लिए चेक
-        loop.run_until_complete(app.get_chat(LOG_CHANNEL))
-        loop.run_until_complete(app.send_message(LOG_CHANNEL, "🚀 Bot Started Successfully!"))
+        # लॉग चैनल वेरिफिकेशन
+        try:
+            loop.run_until_complete(app.get_chat(LOG_CHANNEL))
+            loop.run_until_complete(app.send_message(LOG_CHANNEL, "🚀 Bot Started Successfully!"))
+        except Exception as e:
+            print(f"⚠️ Log Channel Access Warning: {e}")
         
         # कीप अलाइव को लूप में डालें
         loop.create_task(keep_alive())
