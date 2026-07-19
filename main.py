@@ -146,9 +146,19 @@ async def start(client, message):
         
     await message.reply("बोट चालू है! सर्च करने के लिए फाइल का नाम लिखें।\nBot is active! Send file name to search.")
 
-# --- 4. फाइल इंडेक्सिंग ---
+# --- 4. फाइल इंडेक्सिंग (Updated for Album Caption) ---
 @app.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video | filters.photo))
 async def index_files(client, message):
+    # Agar message mein caption nahi hai aur album hai, toh group ka caption dhoondein
+    if not message.caption and getattr(message, "media_group_id", None):
+        try:
+            async for msg in client.get_media_group(message.chat.id, message.id):
+                if msg.caption:
+                    message.caption = msg.caption
+                    break
+        except Exception:
+            pass
+            
     file_info = await get_file_info(message)
     if file_info:
         await add_file(file_info)
