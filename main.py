@@ -33,6 +33,19 @@ async def delete_after_delay(message, delay):
     except Exception:
         pass
 
+# --- फंक्शन: एल्बम ऑटो-डिलीट ---
+async def delete_album_after_delay(messages, warn_msg, delay):
+    await asyncio.sleep(delay)
+    for msg in messages:
+        try:
+            await app.delete_messages(msg.chat.id, msg.id)
+        except Exception:
+            pass
+    try:
+        await warn_msg.delete()
+    except Exception:
+        pass
+
 # --- प्रीमियम स्टेबिलिटी (वेब-सर्वर SSL सपोर्ट के साथ) ---
 async def start_web():
     app_web = web.Application()
@@ -93,9 +106,9 @@ async def start(client, message):
         await set_verify(user_id)
         await message.reply(
             "✅ **Verification successful!**\n\n"
-            "**Please click on the video link again to download your file.**\n\n"
-            "वेरिफिकेशन सफल रहा !\n"
-            "कृपया फाइल डाउनलोड करने के लिए वीडियो लिंक पर दोबारा क्लिक करें。"
+            "**Please click on your File or Album link again to download.**\n\n"
+            "वेरिफिकेशन सफल रहा!\n"
+            "कृपया File या Album डाउनलोड करने के लिए लिंक पर दोबारा क्लिक करें。"
         )
         return
 
@@ -113,8 +126,8 @@ async def start(client, message):
             short_link = await get_shortlink(f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}")
             buttons = [[types.InlineKeyboardButton("🔗 वेरीफाई करें / Verify Now", url=short_link)]]
             await message.reply(
-                "⚠️ **Verify once to get unlimited file access for the next 24 hours!**\n\n"
-                "वेरिफिकेशन पूरा करें और अगले 24 घंटों तक असीमित (Unlimited) फाइलें डाउनलोड करें!",
+                "⚠️ **Verify once to get unlimited File & Album access for the next 24 hours!**\n\n"
+                "एक बार वेरिफाई करें और अगले 24 घंटे तक सभी Files और Albums डाउनलोड करें।",
                 reply_markup=types.InlineKeyboardMarkup(buttons)
             )
             return
@@ -134,6 +147,25 @@ async def start(client, message):
         return
     
     if len(command) > 1 and "getalbum_" in command[1]:
+        
+        # --- फोर्स सब और वेरिफिकेशन चेक ---
+        if FORCE_SUB_CHANNEL:
+            try: await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
+            except:
+                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें / Join Channel", url=f"https://t.me/{str(FORCE_SUB_CHANNEL).replace('-100', '')}")]]
+                await message.reply("⚠️ **पहले चैनल जॉइन करें! / Please join the channel first!**", reply_markup=types.InlineKeyboardMarkup(btn))
+                return
+
+        if user_id not in ADMIN_IDS and not await is_verified(user_id):
+            short_link = await get_shortlink(f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}")
+            buttons = [[types.InlineKeyboardButton("🔗 वेरीफाई करें / Verify Now", url=short_link)]]
+            await message.reply(
+                "⚠️ **Verify once to get unlimited File & Album access for the next 24 hours!**\n\n"
+                "एक बार वेरिफाई करें और अगले 24 घंटे तक सभी Files और Albums डाउनलोड करें।",
+                reply_markup=types.InlineKeyboardMarkup(buttons)
+            )
+            return
+
         group_id = int(command[1].split("getalbum_")[1])
 
         all_files = await db.files.find(
@@ -144,28 +176,24 @@ async def start(client, message):
             return await message.reply("❌ Album नहीं मिला।")
 
         media_group = []
-
         for f in all_files:
             if f["file_type"] == "photo":
-                media_group.append(
-                    types.InputMediaPhoto(
-                        media=f["file_id"]
-                    )
-                )
+                media_group.append(types.InputMediaPhoto(media=f["file_id"]))
             elif f["file_type"] == "video":
-                media_group.append(
-                    types.InputMediaVideo(
-                        media=f["file_id"]
-                    )
-                )
+                media_group.append(types.InputMediaVideo(media=f["file_id"]))
         
         if not media_group:
             return await message.reply("❌ Album में कोई Video या Photo नहीं मिला।")
 
-        await client.send_media_group(
+        sent_msgs = await client.send_media_group(
             chat_id=message.chat.id,
             media=media_group
         )
+        warn_msg = await message.reply(
+            "⚠️ **आपकी फाइल 1 घंटे में अपने आप डिलीट हो जाएगी। कृपया इसे अभी सेव कर लें!**\n\n"
+            "**Your file will be deleted automatically in 1 hour. Please save it now!**"
+        )
+        asyncio.create_task(delete_album_after_delay(sent_msgs, warn_msg, 3600))
         return
         
     await message.reply("बोट चालू है! सर्च करने के लिए फाइल का नाम लिखें।\nBot is active! Send file name to search.")
@@ -173,14 +201,11 @@ async def start(client, message):
 # --- 4. फाइल इंडेक्सिंग ---
 @app.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video | filters.photo))
 async def index_files(client, message):
-
     if message.media_group_id:
         if message.media_group_id in processed_albums:
             return
         processed_albums.add(message.media_group_id)
-
         await asyncio.sleep(2)
-
         try:
             media_group = await client.get_media_group(message.chat.id, message.id)
             caption = None
@@ -188,7 +213,6 @@ async def index_files(client, message):
                 if m.caption:
                     caption = m.caption
                     break
-            
             for m in media_group:
                 if caption:
                     m.caption = caption
@@ -196,10 +220,6 @@ async def index_files(client, message):
                 if file_info:
                     file_info["media_group_id"] = message.media_group_id
                     await add_file(file_info)
-                    try:
-                        await client.send_message(LOG_CHANNEL, f"✅ इंडेक्स हुआ\n📂 {file_info['name']}")
-                    except:
-                        pass
         except Exception as e:
             logging.error(e)
         finally:
@@ -209,10 +229,6 @@ async def index_files(client, message):
     file_info = await get_file_info(message)
     if file_info:
         await add_file(file_info)
-        try:
-            await client.send_message(LOG_CHANNEL, f"✅ इंडेक्स हुआ\n📂 {file_info['name']}")
-        except:
-            pass
 
 # --- 5. ऑटो सर्च (Admin Access Only) ---
 @app.on_message(filters.text & ~filters.command(["start", "broadcast", "stats"]))
@@ -244,23 +260,20 @@ if __name__ == "__main__":
     loop.run_until_complete(create_indexes())
     loop.create_task(start_web())
     loop.create_task(keep_alive())
-    
+
     app.start()
-    
-    # लॉगर चैनल वेरिफिकेशन
+
     try:
         loop.run_until_complete(app.get_chat(LOG_CHANNEL))
         print("✅ Log channel access verified!")
-    except Exception as e:
-        print(f"❌ Cannot access log channel: {e}")
         
-    try:
         loop.run_until_complete(
             app.send_message(LOG_CHANNEL, "🚀 Bot Started Successfully!")
         )
-    except Exception as e:
-        logging.error(e)
         
-    idle()
-    app.stop()
-    
+        idle()
+    except Exception as e:
+        print(f"❌ Error: {e}")
+    finally:
+        app.stop()
+            
