@@ -268,11 +268,6 @@ if __name__ == "__main__":
     try:
         app.start()
         print("✅ Bot is online!")
-        try:
-            loop.run_until_complete(app.get_chat(LOG_CHANNEL))
-            loop.run_until_complete(app.send_message(LOG_CHANNEL, "🚀 Bot Started Successfully!"))
-        except Exception as e:
-            print(f"⚠️ Log Channel Access Warning: {e}")
         loop.create_task(keep_alive())
         idle()
     except Exception as e:
