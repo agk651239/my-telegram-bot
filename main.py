@@ -192,11 +192,12 @@ async def start(client, message):
         file_id = command[1].split("getfile_")[1]
         
         if FORCE_SUB_CHANNEL:
-            try: await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
-            except:
-                # 🛠️ यहाँ फोर्स सब लिंक को सही किया गया है (यदि चैनल आईडी int है, तो इसे यूजरनेम या इनवाइट लिंक से बदलें)
-                sub_link = f"https://t.me/{str(FORCE_SUB_CHANNEL).replace('-100', '')}" if not str(FORCE_SUB_CHANNEL).startswith("-") else "https://t.me/YourChannelUsername"
-                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें / Join Channel", url=sub_link)]]
+            try: 
+                await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
+            except Exception as e:
+                logging.info(f"Force sub check failed for user {user_id}: {e}")
+                # 🛠️ यहाँ सीधे config.py / Render वाले FORCE_SUB_LINK का इस्तेमाल किया गया है
+                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें / Join Channel", url=FORCE_SUB_LINK)]]
                 await message.reply("⚠️ **पहले चैनल जॉइन करें! / Please join the channel first!**", reply_markup=types.InlineKeyboardMarkup(btn))
                 return
 
@@ -242,11 +243,12 @@ async def start(client, message):
     
     if len(command) > 1 and "getalbum_" in command[1]:
         if FORCE_SUB_CHANNEL:
-            try: await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
-            except:
-                # 🛠️ यहाँ भी फोर्स सब लिंक को सुरक्षित किया गया है
-                sub_link = f"https://t.me/{str(FORCE_SUB_CHANNEL).replace('-100', '')}" if not str(FORCE_SUB_CHANNEL).startswith("-") else "https://t.me/YourChannelUsername"
-                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें / Join Channel", url=sub_link)]]
+            try: 
+                await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
+            except Exception as e:
+                logging.info(f"Force sub check failed for user {user_id}: {e}")
+                # 🛠️ यहाँ भी सीधे config.py / Render वाले FORCE_SUB_LINK का इस्तेमाल किया गया है
+                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें / Join Channel", url=FORCE_SUB_LINK)]]
                 await message.reply("⚠️ **पहले चैनल जॉइन करें! / Please join the channel first!**", reply_markup=types.InlineKeyboardMarkup(btn))
                 return
 
@@ -400,4 +402,4 @@ if __name__ == "__main__":
         print(f"❌ Error: {e}")
     finally:
         app.stop()
-            
+                                                  
