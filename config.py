@@ -19,12 +19,18 @@ ADMIN_IDS = [int(x.strip()) for x in admin_ids_raw.split(",") if x.strip().isdig
 # चैनल्स के लिए सुरक्षित कन्वर्जन
 DATABASE_CHANNEL = int(os.environ.get("DATABASE_CHANNEL", 0))
 
-# --- LOG_CHANNEL अपडेट: नंबर आईडी या यूजरनेम दोनों को सुरक्षित संभालने के लिए ---
+# --- LOG_CHANNEL स्मार्ट अपडेट: नंबर आईडी, यूजरनेम या पूरा लिंक सब कुछ सुरक्षित संभालने के लिए ---
 log_channel_raw = os.environ.get("LOG_CHANNEL", "0")
-if log_channel_raw.lstrip('-').isdigit():
+if not log_channel_raw or log_channel_raw == "0":
+    LOG_CHANNEL = 0
+elif log_channel_raw.lstrip('-').isdigit():
     LOG_CHANNEL = int(log_channel_raw)
+elif "t.me/" in log_channel_raw:
+    LOG_CHANNEL = "@" + log_channel_raw.strip("/").split("t.me/")[-1]
+elif not log_channel_raw.startswith("@"):
+    LOG_CHANNEL = "@" + log_channel_raw
 else:
-    LOG_CHANNEL = log_channel_raw # यूजरनेम (जैसे @YourChannel) के लिए
+    LOG_CHANNEL = log_channel_raw
 
 # FORCE_SUB_CHANNEL सेटिंग
 FORCE_SUB_CHANNEL_RAW = os.environ.get("FORCE_SUB_CHANNEL", "0")
