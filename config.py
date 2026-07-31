@@ -50,3 +50,6 @@ HAS_SSL = os.environ.get("HAS_SSL", "False").lower() == "true"
 # Time Settings (सेकंड्स में)
 VERIFY_EXPIRE_TIME = int(os.environ.get("VERIFY_EXPIRE_TIME", 86400)) # 24 घंटे
 AUTO_DELETE_TIME = int(os.environ.get("AUTO_DELETE_TIME", 3600))     # 1 घंटा
+
+# 4. Tutorial Link (Render पर वेरिएबल सेट करने के लिए)
+TUTORIAL_URL = os.environ.get("TUTORIAL_URL", "https://t.me/YourTutorialChannel")
