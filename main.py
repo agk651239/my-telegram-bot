@@ -107,7 +107,8 @@ async def broadcast_handler(client, message):
             # 🚫 User Blocked Bot Log
             try:
                 await client.send_message(LOG_CHANNEL, f"🚫 **User Blocked Bot:** `{user['user_id']}`")
-            except: pass
+            except Exception as e:
+                logging.error(f"Log Error (User Blocked): {e}")
         except: 
             pass
     await message.reply(f"✅ मैसेज {success} यूजर्स को भेज दिया गया। (ब्लॉक किए गए: {blocked})")
@@ -129,7 +130,8 @@ async def stats_handler(client, message):
     await message.reply(stats_text)
     try:
         await client.send_message(LOG_CHANNEL, f"📊 **Advanced /stats checked by Admin:** `{message.from_user.id}`")
-    except: pass
+    except Exception as e:
+        logging.error(f"Log Error (/stats): {e}")
 
 # --- 3. स्टार्ट कमांड (एंटी-बायपास + एडवांस्ड लॉग्स) ---
 @app.on_message(filters.command("start"))
@@ -145,7 +147,8 @@ async def start(client, message):
                 LOG_CHANNEL, 
                 f"🆕 **New User Joined:** `{user_id}`\n📊 **Total Users:** `{total_users}`"
             )
-        except: pass
+        except Exception as e:
+            logging.error(f"Log Error (New User): {e}")
     
     command = message.text.split(" ", 1)
     
@@ -174,7 +177,8 @@ async def start(client, message):
         # ✅ Verification Completed Log
         try:
             await client.send_message(LOG_CHANNEL, f"✅ **Verification Completed:** `{user_id}`")
-        except: pass
+        except Exception as e:
+            logging.error(f"Log Error (Verification Completed): {e}")
 
         await message.reply(
             "✅ **Verification successful!**\n\n"
@@ -206,7 +210,8 @@ async def start(client, message):
             # ⚠️ Verification Pending Log
             try:
                 await client.send_message(LOG_CHANNEL, f"⚠️ **Verification Pending:** `{user_id}` requested file.")
-            except: pass
+            except Exception as e:
+                logging.error(f"Log Error (Verification Pending File): {e}")
 
             buttons = [
                 [types.InlineKeyboardButton("🔗 वेरीफाई करें / Verify Now", url=short_link)],
@@ -253,7 +258,8 @@ async def start(client, message):
             # ⚠️ Verification Pending Log
             try:
                 await client.send_message(LOG_CHANNEL, f"⚠️ **Verification Pending:** `{user_id}` requested album.")
-            except: pass
+            except Exception as e:
+                logging.error(f"Log Error (Verification Pending Album): {e}")
 
             buttons = [
                 [types.InlineKeyboardButton("🔗 वेरीफाई करें / Verify Now", url=short_link)],
@@ -324,7 +330,8 @@ async def index_files(client, message):
             # 🎞️ Album Upload Successfully Log
             try:
                 await client.send_message(LOG_CHANNEL, f"🎞️ **Album Upload Successfully** (Group ID: `{message.media_group_id}`)")
-            except: pass
+            except Exception as e:
+                logging.error(f"Log Error (Album Upload): {e}")
 
         except Exception as e:
             logging.error(e)
@@ -339,7 +346,8 @@ async def index_files(client, message):
         try:
             file_name = file_info.get('name', 'Unknown')
             await client.send_message(LOG_CHANNEL, f"📤 **File Upload Successfully:** `{file_name}`")
-        except: pass
+        except Exception as e:
+            logging.error(f"Log Error (File Upload): {e}")
 
 # --- 5. ऑटो सर्च (Admin Access Only) ---
 @app.on_message(filters.text & ~filters.command(["start", "broadcast", "stats"]))
@@ -388,4 +396,4 @@ if __name__ == "__main__":
         print(f"❌ Error: {e}")
     finally:
         app.stop()
-    
+            
