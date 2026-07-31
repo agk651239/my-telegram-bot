@@ -29,6 +29,9 @@ elif FORCE_SUB_CHANNEL_RAW.lstrip('-').isdigit():
 else:
     FORCE_SUB_CHANNEL = FORCE_SUB_CHANNEL_RAW 
 
+# --- नया लिंक जोड़ा गया है (यहाँ अपने चैनल का इनवाइट लिंक या यूजरनेम डालें) ---
+FORCE_SUB_LINK = os.environ.get("FORCE_SUB_LINK", "https://t.me/YourChannelUsername")
+
 # --- अतिरिक्त सेटिंग्स ---
 FORCE_SUB_ENABLED = os.environ.get("FORCE_SUB_ENABLED", "True").lower() == "true"
 START_MESSAGE = os.environ.get("START_MESSAGE", "नमस्ते! मैं फाइल सर्च बॉट हूँ।")
@@ -46,6 +49,5 @@ HAS_SSL = os.environ.get("HAS_SSL", "False").lower() == "true"
 VERIFY_EXPIRE_TIME = int(os.environ.get("VERIFY_EXPIRE_TIME", 86400))
 AUTO_DELETE_TIME = int(os.environ.get("AUTO_DELETE_TIME", 3600))
 
-# Tutorial Link (Render एनवायरनमेंट वेरिएबल से उठाया जाएगा)
+# Tutorial Link
 TUTORIAL_URL = os.environ.get("TUTORIAL_URL", "")
-
