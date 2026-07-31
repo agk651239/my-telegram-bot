@@ -136,6 +136,8 @@ async def stats_handler(client, message):
 # --- 3. स्टार्ट कमांड (एंटी-बायपास + एडवांस्ड लॉग्स) ---
 @app.on_message(filters.command("start"))
 async def start(client, message):
+    if not message.from_user:
+        return
     user_id = message.from_user.id
     
     if not await db.users.find_one({"user_id": user_id}):
@@ -196,7 +198,6 @@ async def start(client, message):
                 await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
             except Exception as e:
                 logging.info(f"Force sub check failed for user {user_id}: {e}")
-                # 🛠️ यहाँ सीधे config.py / Render वाले FORCE_SUB_LINK का इस्तेमाल किया गया है
                 btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें / Join Channel", url=FORCE_SUB_LINK)]]
                 await message.reply("⚠️ **पहले चैनल जॉइन करें! / Please join the channel first!**", reply_markup=types.InlineKeyboardMarkup(btn))
                 return
@@ -247,7 +248,6 @@ async def start(client, message):
                 await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
             except Exception as e:
                 logging.info(f"Force sub check failed for user {user_id}: {e}")
-                # 🛠️ यहाँ भी सीधे config.py / Render वाले FORCE_SUB_LINK का इस्तेमाल किया गया है
                 btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें / Join Channel", url=FORCE_SUB_LINK)]]
                 await message.reply("⚠️ **पहले चैनल जॉइन करें! / Please join the channel first!**", reply_markup=types.InlineKeyboardMarkup(btn))
                 return
@@ -358,11 +358,10 @@ async def index_files(client, message):
 # --- 5. ऑटो सर्च (Admin Access Only) ---
 @app.on_message(filters.text & ~filters.command(["start", "broadcast", "stats"]))
 async def auto_search(client, message):
-    if message.from_user.id not in ADMIN_IDS:
-        return  # आम यूजर अगर कुछ भी टाइप करे तो चुप रहे, बार-बार एरर मैसेज न भेजे
+    if not message.from_user or message.from_user.id not in ADMIN_IDS:
+        return  # NoneType या आम यूजर होने पर क्रैश नहीं होगा
 
     query = message.text
-    # 30 की लिमिट ताकि सारे बटन आ सकें
     files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=30)
     if not files: 
         return await message.reply("❌ कोई फाइल नहीं मिली। / No file found.")
@@ -395,7 +394,7 @@ if __name__ == "__main__":
         app.start()
         print("✅ Bot is online!")
         
-        # 🛠️ स्मार्ट लॉग चैनल रिजॉल्वर (आईडी, यूजरनेम या लिंक को ऑटो-डिटेक्ट करने के लिए)
+        # 🛠️ स्मार्ट लॉग चैनल रिजॉल्वर
         try:
             resolved_log_channel = LOG_CHANNEL
             if isinstance(LOG_CHANNEL, str):
