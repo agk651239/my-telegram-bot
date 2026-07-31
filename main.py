@@ -395,9 +395,18 @@ if __name__ == "__main__":
         app.start()
         print("✅ Bot is online!")
         
-        # 🛠️ Log Channel Username/ID Warm-up & Startup Message
+        # 🛠️ स्मार्ट लॉग चैनल रिजॉल्वर (आईडी, यूजरनेम या लिंक को ऑटो-डिटेक्ट करने के लिए)
         try:
-            loop.run_until_complete(app.send_message(LOG_CHANNEL, "🟢 **Bot Restarted & Log Channel Connected Successfully!**"))
+            resolved_log_channel = LOG_CHANNEL
+            if isinstance(LOG_CHANNEL, str):
+                if "t.me/" in LOG_CHANNEL:
+                    resolved_log_channel = "@" + LOG_CHANNEL.strip("/").split("t.me/")[-1]
+                elif not LOG_CHANNEL.startswith("@") and not LOG_CHANNEL.startswith("-") and not LOG_CHANNEL.isdigit():
+                    resolved_log_channel = "@" + LOG_CHANNEL
+                elif LOG_CHANNEL.lstrip('-').isdigit():
+                    resolved_log_channel = int(LOG_CHANNEL)
+            
+            loop.run_until_complete(app.send_message(resolved_log_channel, "🟢 **Bot Restarted & Log Channel Connected Successfully!**"))
         except Exception as e:
             print(f"⚠️ Log Channel Startup Warning: {e}")
 
@@ -408,4 +417,4 @@ if __name__ == "__main__":
         print(f"❌ Error: {e}")
     finally:
         app.stop()
-                    
+        
