@@ -395,6 +395,12 @@ if __name__ == "__main__":
         app.start()
         print("✅ Bot is online!")
         
+        # 🛠️ लॉग चैनल को इनिशियलाइज (Warm-up) करने के लिए स्टार्टअप मैसेज
+        try:
+            loop.run_until_complete(app.send_message(LOG_CHANNEL, "🟢 **Bot Restarted & Log Channel Connected Successfully!**"))
+        except Exception as e:
+            print(f"⚠️ Log Channel Startup Warning: {e}")
+
         loop.create_task(keep_alive())
         loop.create_task(send_daily_report())
         idle()
@@ -402,4 +408,4 @@ if __name__ == "__main__":
         print(f"❌ Error: {e}")
     finally:
         app.stop()
-                                                  
+            
