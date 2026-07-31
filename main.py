@@ -1,7 +1,9 @@
 from pyrogram import Client, filters, types, idle
+from pyrogram.errors import UserIsBlocked, InputUserDeactivated
 import asyncio
 import aiohttp
 import logging
+import secrets
 from humanfriendly import format_size
 from config import *
 from database import * 
@@ -70,6 +72,23 @@ async def keep_alive():
             except Exception as e:
                 logging.error(f"❌ Ping Failed: {e}")
 
+# --- बैकग्राउंड टास्क: डेली रिपोर्ट (हर 24 घंटे में) ---
+async def send_daily_report():
+    while True:
+        await asyncio.sleep(86400) # 24 घंटे
+        try:
+            total_users = await db.users.count_documents({})
+            total_files = await db.files.count_documents({})
+            report_text = (
+                f"📅 **Daily Report**\n\n"
+                f"📊 **Total Users:** `{total_users}`\n"
+                f"📂 **Total Files Indexed:** `{total_files}`\n"
+                f"🟢 **Bot Status:** Online & Running"
+            )
+            await app.send_message(LOG_CHANNEL, report_text)
+        except Exception as e:
+            logging.error(f"Daily Report Error: {e}")
+
 # --- 1. ब्रॉडकास्ट कमांड ---
 @app.on_message(filters.command("broadcast") & filters.user(ADMIN_IDS))
 async def broadcast_handler(client, message):
@@ -77,34 +96,86 @@ async def broadcast_handler(client, message):
         return await message.reply("❌ कृपया मैसेज रिप्लाई करें।")
     users = await db.users.find({}).to_list(length=None)
     success = 0
+    blocked = 0
     for user in users:
         try:
             await client.copy_message(user["user_id"], message.chat.id, message.reply_to_message.id)
             success += 1
             await asyncio.sleep(0.05) 
-        except: pass
-    await message.reply(f"✅ मैसेज {success} यूजर्स को भेज दिया गया।")
+        except (UserIsBlocked, InputUserDeactivated):
+            blocked += 1
+            # 🚫 User Blocked Bot Log
+            try:
+                await client.send_message(LOG_CHANNEL, f"🚫 **User Blocked Bot:** `{user['user_id']}`")
+            except: pass
+        except: 
+            pass
+    await message.reply(f"✅ मैसेज {success} यूजर्स को भेज दिया गया। (ब्लॉक किए गए: {blocked})")
 
-# --- 2. स्टेटस कमांड ---
+# --- 2. स्टेटस कमांड (Advanced /stats) ---
 @app.on_message(filters.command("stats") & filters.user(ADMIN_IDS))
 async def stats_handler(client, message):
     total_users = await db.users.count_documents({})
-    await message.reply(f"📊 **बोट के कुल यूजर्स:** {total_users}")
+    total_files = await db.files.count_documents({})
+    verified_users = await db.users.count_documents({"is_verified": True})
+    
+    stats_text = (
+        f"📊 **Advanced Bot Statistics (/stats)**\n\n"
+        f"👥 **Total Users:** `{total_users}`\n"
+        f"✅ **Verified Users:** `{verified_users}`\n"
+        f"📂 **Total Indexed Files:** `{total_files}`\n"
+        f"🟢 **Bot Status:** Active"
+    )
+    await message.reply(stats_text)
+    try:
+        await client.send_message(LOG_CHANNEL, f"📊 **Advanced /stats checked by Admin:** `{message.from_user.id}`")
+    except: pass
 
-# --- 3. स्टार्ट कमांड ---
+# --- 3. स्टार्ट कमांड (एंटी-बायपास + एडवांस्ड लॉग्स) ---
 @app.on_message(filters.command("start"))
 async def start(client, message):
     user_id = message.from_user.id
     
     if not await db.users.find_one({"user_id": user_id}):
         await add_user(user_id)
-        try: await client.send_message(LOG_CHANNEL, f"👤 **नया यूजर:** `{user_id}`")
+        total_users = await db.users.count_documents({})
+        try: 
+            # 🆕 New User Joined + Total Users Log
+            await client.send_message(
+                LOG_CHANNEL, 
+                f"🆕 **New User Joined:** `{user_id}`\n📊 **Total Users:** `{total_users}`"
+            )
         except: pass
     
     command = message.text.split(" ", 1)
     
     if len(command) > 1 and "verify_" in command[1]:
+        try:
+            parts = command[1].split("_")
+            if len(parts) >= 3:
+                token_in_link = parts[2]
+                user_data = await db.users.find_one({"user_id": user_id})
+                
+                saved_token = user_data.get("verify_token") if user_data else None
+                token_used = user_data.get("token_used", False)
+                
+                if not saved_token or saved_token != token_in_link or token_used:
+                    return await message.reply(
+                        "❌ **यह वेरिफिकेशन लिंक एक्सपायर हो चुका है या पहले ही इस्तेमाल किया जा चुका है!**\n\n"
+                        "कृपया फाइल लिंक पर दोबारा क्लिक करके नया शॉर्टलिंक जनरेट करें।"
+                    )
+                
+                await db.users.update_one({"user_id": user_id}, {"$set": {"token_used": True}})
+        except Exception as e:
+            logging.error(f"Token Verification Error: {e}")
+
         await set_verify(user_id)
+        
+        # ✅ Verification Completed Log
+        try:
+            await client.send_message(LOG_CHANNEL, f"✅ **Verification Completed:** `{user_id}`")
+        except: pass
+
         await message.reply(
             "✅ **Verification successful!**\n\n"
             "**Please click on your File or Album link again to download.**\n\n"
@@ -124,8 +195,23 @@ async def start(client, message):
                 return
 
         if user_id not in ADMIN_IDS and not await is_verified(user_id):
-            short_link = await get_shortlink(f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}")
-            buttons = [[types.InlineKeyboardButton("🔗 वेरीफाई करें / Verify Now", url=short_link)]]
+            unique_token = secrets.token_hex(6)
+            await db.users.update_one(
+                {"user_id": user_id}, 
+                {"$set": {"verify_token": unique_token, "token_used": False}}
+            )
+            
+            short_link = await get_shortlink(f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}_{unique_token}")
+            
+            # ⚠️ Verification Pending Log
+            try:
+                await client.send_message(LOG_CHANNEL, f"⚠️ **Verification Pending:** `{user_id}` requested file.")
+            except: pass
+
+            buttons = [
+                [types.InlineKeyboardButton("🔗 वेरीफाई करें / Verify Now", url=short_link)],
+                [types.InlineKeyboardButton("❓ वेरिफिकेशन कैसे करें? / How to Verify?", url="https://t.me/YourTutorialChannel")]
+            ]
             await message.reply(
                 "⚠️ **Verify once to get unlimited File & Album access for the next 24 hours!**\n\n"
                 "एक बार वेरिफाई करें और अगले 24 घंटे तक सभी Files और Albums डाउनलोड करें।",
@@ -156,8 +242,23 @@ async def start(client, message):
                 return
 
         if user_id not in ADMIN_IDS and not await is_verified(user_id):
-            short_link = await get_shortlink(f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}")
-            buttons = [[types.InlineKeyboardButton("🔗 वेरीफाई करें / Verify Now", url=short_link)]]
+            unique_token = secrets.token_hex(6)
+            await db.users.update_one(
+                {"user_id": user_id}, 
+                {"$set": {"verify_token": unique_token, "token_used": False}}
+            )
+            
+            short_link = await get_shortlink(f"https://t.me/{BOT_USERNAME}?start=verify_{user_id}_{unique_token}")
+            
+            # ⚠️ Verification Pending Log
+            try:
+                await client.send_message(LOG_CHANNEL, f"⚠️ **Verification Pending:** `{user_id}` requested album.")
+            except: pass
+
+            buttons = [
+                [types.InlineKeyboardButton("🔗 वेरीफाई करें / Verify Now", url=short_link)],
+                [types.InlineKeyboardButton("❓ वेरिफिकेशन कैसे करें? / How to Verify?", url="https://t.me/YourTutorialChannel")]
+            ]
             await message.reply(
                 "⚠️ **Verify once to get unlimited File & Album access for the next 24 hours!**\n\n"
                 "एक बार वेरिफाई करें और अगले 24 घंटे तक सभी Files और Albums डाउनलोड करें।",
@@ -219,6 +320,12 @@ async def index_files(client, message):
                 if file_info:
                     file_info["media_group_id"] = message.media_group_id
                     await add_file(file_info)
+            
+            # 🎞️ Album Upload Successfully Log
+            try:
+                await client.send_message(LOG_CHANNEL, f"🎞️ **Album Upload Successfully** (Group ID: `{message.media_group_id}`)")
+            except: pass
+
         except Exception as e:
             logging.error(e)
         finally:
@@ -228,6 +335,11 @@ async def index_files(client, message):
     file_info = await get_file_info(message)
     if file_info:
         await add_file(file_info)
+        # 📤 File Upload Successfully Log
+        try:
+            file_name = file_info.get('name', 'Unknown')
+            await client.send_message(LOG_CHANNEL, f"📤 **File Upload Successfully:** `{file_name}`")
+        except: pass
 
 # --- 5. ऑटो सर्च (Admin Access Only) ---
 @app.on_message(filters.text & ~filters.command(["start", "broadcast", "stats"]))
@@ -268,10 +380,19 @@ if __name__ == "__main__":
     try:
         app.start()
         print("✅ Bot is online!")
+        
+        # 🟢 Bot Started Log
+        loop.run_until_complete(app.send_message(LOG_CHANNEL, "🟢 **Bot Started Successfully!**"))
+        
         loop.create_task(keep_alive())
+        loop.create_task(send_daily_report())
         idle()
     except Exception as e:
         print(f"❌ Error: {e}")
     finally:
+        # 🔴 Bot Stopped Log
+        try:
+            loop.run_until_complete(app.send_message(LOG_CHANNEL, "🔴 **Bot Stopped!**"))
+        except: pass
         app.stop()
         
