@@ -381,18 +381,11 @@ if __name__ == "__main__":
         app.start()
         print("✅ Bot is online!")
         
-        # 🟢 Bot Started Log
-        loop.run_until_complete(app.send_message(LOG_CHANNEL, "🟢 **Bot Started Successfully!**"))
-        
         loop.create_task(keep_alive())
         loop.create_task(send_daily_report())
         idle()
     except Exception as e:
         print(f"❌ Error: {e}")
     finally:
-        # 🔴 Bot Stopped Log
-        try:
-            loop.run_until_complete(app.send_message(LOG_CHANNEL, "🔴 **Bot Stopped!**"))
-        except: pass
         app.stop()
         
