@@ -194,7 +194,9 @@ async def start(client, message):
         if FORCE_SUB_CHANNEL:
             try: await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
             except:
-                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें / Join Channel", url=f"https://t.me/{str(FORCE_SUB_CHANNEL).replace('-100', '')}")]]
+                # 🛠️ यहाँ फोर्स सब लिंक को सही किया गया है (यदि चैनल आईडी int है, तो इसे यूजरनेम या इनवाइट लिंक से बदलें)
+                sub_link = f"https://t.me/{str(FORCE_SUB_CHANNEL).replace('-100', '')}" if not str(FORCE_SUB_CHANNEL).startswith("-") else "https://t.me/YourChannelUsername"
+                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें / Join Channel", url=sub_link)]]
                 await message.reply("⚠️ **पहले चैनल जॉइन करें! / Please join the channel first!**", reply_markup=types.InlineKeyboardMarkup(btn))
                 return
 
@@ -215,7 +217,7 @@ async def start(client, message):
 
             buttons = [
                 [types.InlineKeyboardButton("🔗 वेरीफाई करें / Verify Now", url=short_link)],
-                [types.InlineKeyboardButton("❓ वेरिफिकेशन कैसे करें? / How to Verify?", url="https://t.me/YourTutorialChannel")]
+                [types.InlineKeyboardButton("❓ वेरिफिकेशन कैसे करें? / How to Verify?", url=TUTORIAL_URL)]
             ]
             await message.reply(
                 "⚠️ **Verify once to get unlimited File & Album access for the next 24 hours!**\n\n"
@@ -242,7 +244,9 @@ async def start(client, message):
         if FORCE_SUB_CHANNEL:
             try: await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
             except:
-                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें / Join Channel", url=f"https://t.me/{str(FORCE_SUB_CHANNEL).replace('-100', '')}")]]
+                # 🛠️ यहाँ भी फोर्स सब लिंक को सुरक्षित किया गया है
+                sub_link = f"https://t.me/{str(FORCE_SUB_CHANNEL).replace('-100', '')}" if not str(FORCE_SUB_CHANNEL).startswith("-") else "https://t.me/YourChannelUsername"
+                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें / Join Channel", url=sub_link)]]
                 await message.reply("⚠️ **पहले चैनल जॉइन करें! / Please join the channel first!**", reply_markup=types.InlineKeyboardMarkup(btn))
                 return
 
@@ -263,7 +267,7 @@ async def start(client, message):
 
             buttons = [
                 [types.InlineKeyboardButton("🔗 वेरीफाई करें / Verify Now", url=short_link)],
-                [types.InlineKeyboardButton("❓ वेरिफिकेशन कैसे करें? / How to Verify?", url="https://t.me/YourTutorialChannel")]
+                [types.InlineKeyboardButton("❓ वेरिफिकेशन कैसे करें? / How to Verify?", url=TUTORIAL_URL)]
             ]
             await message.reply(
                 "⚠️ **Verify once to get unlimited File & Album access for the next 24 hours!**\n\n"
