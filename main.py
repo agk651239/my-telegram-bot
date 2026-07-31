@@ -180,7 +180,7 @@ async def start(client, message):
             "✅ **Verification successful!**\n\n"
             "**Please click on your File or Album link again to download.**\n\n"
             "वेरिफिकेशन सफल रहा!\n"
-            "कृपया File या Album डाउनलोड करने के लिए लिंक पर दोबारा क्लिक करें。"
+            "कृपया File या Album डाउनलोड करने के लिए लिंक पर दोबारा क्लिक करें।"
         )
         return
 
@@ -296,7 +296,7 @@ async def start(client, message):
         asyncio.create_task(delete_album_after_delay(sent_msgs, warn_msg, 3600))
         return
         
-    await message.reply("बोट चालू है! सर्च करने के लिए फाइल का नाम लिखें।\nBot is active! Send file name to search.")
+    await message.reply("बोट चालू है! Bot is active.")
 
 # --- 4. फाइल इंडेक्सिंग ---
 @app.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video | filters.photo))
@@ -345,7 +345,7 @@ async def index_files(client, message):
 @app.on_message(filters.text & ~filters.command(["start", "broadcast", "stats"]))
 async def auto_search(client, message):
     if message.from_user.id not in ADMIN_IDS:
-        return await message.reply("❌ केवल एडमिन ही इस बॉट में सर्च कर सकते हैं।")
+        return  # आम यूजर अगर कुछ भी टाइप करे तो चुप रहे, बार-बार एरर मैसेज न भेजे
 
     query = message.text
     # 30 की लिमिट ताकि सारे बटन आ सकें
@@ -388,4 +388,4 @@ if __name__ == "__main__":
         print(f"❌ Error: {e}")
     finally:
         app.stop()
-        
+    
