@@ -216,7 +216,6 @@ async def start(client, message):
         except Exception as e:
             logging.error(f"Log Error (Verification Completed): {e}")
 
-        # यहाँ सीधे VERIFY_EXPIRE_HOURS रेंडर वेरिएबल से शो होगा
         await message.reply(
             f"✅ **वेरिफ़िकेशन सफल रहा! / Verification Successful!**\n\n"
             f"अब आप अगले {VERIFY_EXPIRE_HOURS} घंटों के लिए असीमित फाइलें और एल्बम डाउनलोड कर सकते हैं।\n"
@@ -449,4 +448,60 @@ async def auto_search(client, message):
         return
 
     query = message.text
-    files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=3
+    files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=30)
+    if not files: 
+        return await message.reply("❌ कोई फाइल नहीं मिली। / No file found.")
+    
+    buttons = []
+    processed_groups = set()
+    
+    for f in files:
+        if f.get("media_group_id"):
+            if f["media_group_id"] not in processed_groups:
+                album_link = f"https://t.me/{BOT_USERNAME}?start=getalbum_{f['media_group_id']}"
+                btn = [types.InlineKeyboardButton(f"📥 Album: {f['name']}", url=album_link)]
+                buttons.append(btn)
+                processed_groups.add(f["media_group_id"])
+        else:
+            unique_link = f"https://t.me/{BOT_USERNAME}?start=getfile_{f['_id']}"
+            file_size = format_size(f.get("file_size", 0))
+            btn = [types.InlineKeyboardButton(f"📥 File: {f['name']} ({file_size})", url=unique_link)]
+            buttons.append(btn)
+
+    await message.reply(f"📂 **'{query}' के लिए रिजल्ट्स:**", reply_markup=types.InlineKeyboardMarkup(buttons))
+
+# --- स्टार्टअप सीक्वेंस ---
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.create_task(start_web())
+    loop.run_until_complete(create_indexes())
+    
+    try:
+        app.start()
+        print("✅ Bot is online!")
+        
+        # मिसिंग कीज़ अलर्ट चेक करें
+        loop.run_until_complete(send_missing_keys_alert())
+        
+        try:
+            resolved_log_channel = LOG_CHANNEL
+            if isinstance(LOG_CHANNEL, str):
+                if "t.me/" in LOG_CHANNEL:
+                    resolved_log_channel = "@" + LOG_CHANNEL.strip("/").split("t.me/")[-1]
+                elif not LOG_CHANNEL.startswith("@") and not LOG_CHANNEL.startswith("-") and not LOG_CHANNEL.isdigit():
+                    resolved_log_channel = "@" + LOG_CHANNEL
+                elif LOG_CHANNEL.lstrip('-').isdigit():
+                    resolved_log_channel = int(LOG_CHANNEL)
+            
+            loop.run_until_complete(app.send_message(resolved_log_channel, "🟢 **Bot Restarted & Log Channel Connected Successfully!**"))
+        except Exception as e:
+            print(f"⚠️ Log Channel Startup Warning: {e}")
+
+        loop.create_task(keep_alive())
+        loop.create_task(send_daily_report())
+        idle()
+    except Exception as e:
+        print(f"❌ Error: {e}")
+    finally:
+        app.stop()
+        
