@@ -166,7 +166,7 @@ async def help_handler(client, message):
     if TUTORIAL_URL:
         buttons.append([types.InlineKeyboardButton("❓ ट्यूटोरियल देखें / How to Verify", url=TUTORIAL_URL)])
     
-    await message.reply_text(help_text, reply_markup=types.InlineKeyboardMarkup(buttons) if buttons else None)
+    await message.reply_text(help_text, reply_markup=types.InlineKeyboardMarkup(buttons) if buttons else None) 
 
 # --- 4. स्टार्ट कमांड (फोर्स चैनल चेकिंग + वेरिफिकेशन टाइम मैसेज के साथ) ---
 @app.on_message(filters.command("start"))
@@ -260,13 +260,13 @@ async def start(client, message):
                     )
 
                 try:
-                    ch_id = int(channel) if channel.startswith("-") or channel.isdigit() else channel
+                    ch_id = int(channel) if str(channel).startswith("-") or str(channel).isdigit() else channel
                     member = await client.get_chat_member(ch_id, user_id)
                     if member.status in ["left", "kicked"]:
                         raise Exception("Not joined")
                 except Exception:
                     try:
-                        ch_id = int(channel) if channel.startswith("-") or channel.isdigit() else channel
+                        ch_id = int(channel) if str(channel).startswith("-") or str(channel).isdigit() else channel
                         chat = await client.get_chat(ch_id)
                         channel_link = chat.invite_link or (f"https://t.me/{chat.username}" if chat.username else "https://t.me")
                     except Exception:
@@ -281,14 +281,6 @@ async def start(client, message):
                         "बोट का उपयोग करने के लिए कृपया हमारे प्राइवेट चैनल को ज्वाइन करें।",
                         reply_markup=types.InlineKeyboardMarkup(join_buttons)
                     )
-
-        if FORCE_SUB_ENABLED and FORCE_SUB_CHANNEL:
-            try: 
-                await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
-            except Exception as e:
-                logging.info(f"Force sub check failed for user {user_id}: {e}")
-                btn = [[types.InlineKeyboardButton("🔗 चैनल जॉइन करें / Join Channel", url=FORCE_SUB_LINK)]]
-                return await message.reply("⚠️ **पहले चैनल जॉइन करें! / Please join the channel first!**", reply_markup=types.InlineKeyboardMarkup(btn))
 
     if len(command) > 1 and "getfile_" in command[1]:
         file_id = command[1].split("getfile_")[1]
@@ -505,3 +497,4 @@ if __name__ == "__main__":
     finally:
         app.stop()
         
+    
