@@ -44,15 +44,8 @@ private_raw = os.environ.get("PRIVATE_FORCE_CHANNELS", "").strip()
 if private_raw.lower() in ["false", "none", "off", ""]:
     PRIVATE_CHANNELS = []
 else:
-    PRIVATE_CHANNELS = [ch.strip() for ch in private_raw.split(",") if ch.strip()]
-
-FORCE_SUB_CHANNEL_RAW = os.environ.get("FORCE_SUB_CHANNEL", "0")
-if FORCE_SUB_CHANNEL_RAW == "0" or not FORCE_SUB_CHANNEL_RAW:
-    FORCE_SUB_CHANNEL = None
-elif FORCE_SUB_CHANNEL_RAW.lstrip('-').isdigit():
-    FORCE_SUB_CHANNEL = int(FORCE_SUB_CHANNEL_RAW)
-else:
-    FORCE_SUB_CHANNEL = FORCE_SUB_CHANNEL_RAW 
+    # यदि आईडी संख्या में है (जैसे -100... तो उसे इंटीजर में बदलें, नहीं तो स्ट्रिंग रहने दें)
+    PRIVATE_CHANNELS = [int(ch.strip()) if ch.strip().lstrip('-').isdigit() else ch.strip() for ch in private_raw.split(",") if ch.strip()]
 
 FORCE_SUB_LINK = os.environ.get("FORCE_SUB_LINK", "https://t.me/YourChannelUsername")
 FORCE_SUB_ENABLED = os.environ.get("FORCE_SUB_ENABLED", "True").lower() == "true"
@@ -98,4 +91,3 @@ for key, value in config_dict.items():
 API_ID = int(API_ID) if API_ID and str(API_ID).isdigit() else 0
 VERIFY_EXPIRE_HOURS = int(VERIFY_EXPIRE_HOURS) if VERIFY_EXPIRE_HOURS and str(VERIFY_EXPIRE_HOURS).isdigit() else 24
 VERIFY_EXPIRE_TIME = VERIFY_EXPIRE_HOURS * 3600  # सेकंड्स में कन्वर्ट
-
