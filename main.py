@@ -118,7 +118,7 @@ async def broadcast_handler(client, message):
 async def stats_handler(client, message):
     total_users = await db.users.count_documents({})
     total_files = await db.files.count_documents({})
-    verified_users = await db.users.count_documents({"is_verified": True})
+    verified_users = await db.users.count_documents({"expire_at": {"$gt": time.time()}})
     
     stats_text = (
         f"📊 **Advanced Bot Statistics (/stats)**\n\n"
@@ -193,7 +193,7 @@ async def start(client, message):
     if len(command) > 1 and "getfile_" in command[1]:
         file_id = command[1].split("getfile_")[1]
         
-        if FORCE_SUB_CHANNEL:
+        if FORCE_SUB_ENABLED and FORCE_SUB_CHANNEL:
             try: 
                 await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
             except Exception as e:
@@ -243,7 +243,7 @@ async def start(client, message):
         return
     
     if len(command) > 1 and "getalbum_" in command[1]:
-        if FORCE_SUB_CHANNEL:
+        if FORCE_SUB_ENABLED and FORCE_SUB_CHANNEL:
             try: 
                 await client.get_chat_member(FORCE_SUB_CHANNEL, user_id)
             except Exception as e:
@@ -278,7 +278,10 @@ async def start(client, message):
             )
             return
 
-        group_id = int(command[1].split("getalbum_")[1])
+        try:
+            group_id = int(command[1].split("getalbum_")[1])
+        except ValueError:
+            return await message.reply("❌ अमान्य एल्बम लिंक।")
 
         all_files = await db.files.find(
             {"media_group_id": group_id}
@@ -297,18 +300,21 @@ async def start(client, message):
         if not media_group:
             return await message.reply("❌ Album में कोई Video या Photo नहीं मिला।")
 
-        sent_msgs = await client.send_media_group(
-            chat_id=message.chat.id,
-            media=media_group
-        )
-        warn_msg = await message.reply(
-            "⚠️ **आपकी फाइल 1 घंटे में अपने आप डिलीट हो जाएगी। कृपया इसे अभी सेव कर लें!**\n\n"
-            "**Your file will be deleted automatically in 1 hour. Please save it now!**"
-        )
-        asyncio.create_task(delete_album_after_delay(sent_msgs, warn_msg, 3600))
+        try:
+            sent_msgs = await client.send_media_group(
+                chat_id=message.chat.id,
+                media=media_group
+            )
+            warn_msg = await message.reply(
+                "⚠️ **आपकी फाइल 1 घंटे में अपने आप डिलीट हो जाएगी। कृपया इसे अभी सेव कर लें!**\n\n"
+                "**Your file will be deleted automatically in 1 hour. Please save it now!**"
+            )
+            asyncio.create_task(delete_album_after_delay(sent_msgs, warn_msg, 3600))
+        except Exception as e:
+            await message.reply(f"❌ एल्बम भेजने में एरर: {e}")
         return
         
-    await message.reply("बोट चालू है! Bot is active.")
+    await message.reply(START_MESSAGE)
 
 # --- 4. फाइल इंडेक्सिंग ---
 @app.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video | filters.photo))
@@ -416,4 +422,4 @@ if __name__ == "__main__":
         print(f"❌ Error: {e}")
     finally:
         app.stop()
-        
+                          
