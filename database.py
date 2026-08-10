@@ -15,11 +15,9 @@ db = client[DATABASE_NAME]
 # इंडेक्स बनाना
 async def create_indexes():
     try:
-        # पिंग करके चेक करें कि डेटाबेस चालू है
         await db.command("ping")
         logger.info("✅ डेटाबेस कनेक्शन सफल!")
 
-        # इंडेक्स चेक करके पुराना इंडेक्स हटाने का लॉजिक
         try:
             indexes = await db.files.index_information()
             if "name_text" in indexes:
@@ -27,20 +25,12 @@ async def create_indexes():
         except Exception:
             pass
             
-        # नाम पर टेक्स्ट इंडेक्स (Text Index)
         await db.files.create_index([("name", TEXT)], default_language='none')
-        
-        # सर्च को फास्ट बनाने के लिए नाम पर साधारण इंडेक्स (Regex के लिए सबसे अच्छा)
         await db.files.create_index([("name", ASCENDING)])
-        
-        # media_group_id और message_id इंडेक्स
         await db.files.create_index("media_group_id")
         await db.files.create_index("message_id")
-        
-        # यूजर आईडी के लिए इंडेक्स
         await db.users.create_index("user_id", unique=True)
         
-        # फाइल के लिए यूनिक इंडेक्स (Error handling के साथ)
         try:
             await db.files.create_index("file_id", unique=True)
         except Exception:
@@ -57,7 +47,6 @@ async def is_verified(user_id):
     try:
         user = await db.users.find_one({"user_id": user_id})
         if user and user.get("expire_at"):
-            # यदि समय अभी से ज्यादा है, तो वेरिफाइड है
             return user["expire_at"] > time.time()
         return False
     except Exception as e: 
@@ -81,9 +70,7 @@ async def add_file(d):
     if not d or "file_id" not in d: 
         return
     try:
-        # नाम को सुरक्षित रखने के लिए None चेक
         file_name = d.get("name") or "Untitled"
-        
         await db.files.update_one(
             {"file_id": d.get("file_id")},
             {
