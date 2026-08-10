@@ -15,7 +15,7 @@ DATABASE_NAME = os.environ.get("DATABASE_NAME", "bot_db")
 # Channel & Admin Settings
 admin_ids_raw = os.environ.get("ADMIN_IDS", "")
 ADMIN_IDS = [int(x.strip()) for x in admin_ids_raw.split(",") if x.strip().isdigit()]
-ADMIN_ID = ADMIN_IDS[0] if ADMIN_IDS else 0  # सिंगल एडमिन सपोर्ट के लिए
+ADMIN_ID = ADMIN_IDS[0] if ADMIN_IDS else 0
 
 # चैनल्स के लिए सुरक्षित कन्वर्जन
 DATABASE_CHANNEL = int(os.environ.get("DATABASE_CHANNEL", 0))
@@ -33,7 +33,19 @@ elif not log_channel_raw.startswith("@"):
 else:
     LOG_CHANNEL = log_channel_raw
 
-# FORCE_SUB_CHANNEL सेटिंग
+# --- Force Channels (Public और Private दोनों सपोर्ट के साथ) ---
+public_raw = os.environ.get("PUBLIC_FORCE_CHANNELS", "").strip()
+if public_raw.lower() in ["false", "none", "off", ""]:
+    PUBLIC_CHANNELS = []
+else:
+    PUBLIC_CHANNELS = [ch.strip() for ch in public_raw.split(",") if ch.strip()]
+
+private_raw = os.environ.get("PRIVATE_FORCE_CHANNELS", "").strip()
+if private_raw.lower() in ["false", "none", "off", ""]:
+    PRIVATE_CHANNELS = []
+else:
+    PRIVATE_CHANNELS = [ch.strip() for ch in private_raw.split(",") if ch.strip()]
+
 FORCE_SUB_CHANNEL_RAW = os.environ.get("FORCE_SUB_CHANNEL", "0")
 if FORCE_SUB_CHANNEL_RAW == "0" or not FORCE_SUB_CHANNEL_RAW:
     FORCE_SUB_CHANNEL = None
@@ -50,34 +62,40 @@ SEARCH_LIMIT = int(os.environ.get("SEARCH_LIMIT", 10))
 # Shortener Settings (Render variables)
 SHORTENER_API = os.environ.get("SHORTENER_API", "")
 SHORTENER_WEBSITE = os.environ.get("SHORTENER_WEBSITE", "")
+SHORTENER_URL = os.environ.get("SHORTENER_URL", "")
 
-# Verification Time in Hours (Render Variable)
+# Verification Time in Hours (Render Variable) & Tutorial Link
 VERIFY_EXPIRE_HOURS = os.environ.get("VERIFY_EXPIRE_HOURS", "24")
+HOW_TO_VERIFY_LINK = os.environ.get("HOW_TO_VERIFY_LINK", "")
+TUTORIAL_URL = os.environ.get("TUTORIAL_URL", "")
 
 # Server Port & SSL Settings
 PORT = int(os.environ.get("PORT", 10000))
 HAS_SSL = os.environ.get("HAS_SSL", "False").lower() == "true"
-
-# Auto Delete Time & Tutorial Link
 AUTO_DELETE_TIME = int(os.environ.get("AUTO_DELETE_TIME", 3600))
-TUTORIAL_URL = os.environ.get("TUTORIAL_URL", "")
 
-# --- Missing Keys Detection (कौन सी कीज़ गायब हैं उनकी लिस्ट) ---
+# --- Missing Keys Detection ---
 missing_keys = []
 config_dict = {
     "API_ID": API_ID,
     "API_HASH": API_HASH,
     "BOT_TOKEN": BOT_TOKEN,
     "DATABASE_URI": DATABASE_URI,
+    "ADMIN_IDS": admin_ids_raw,
+    "LOG_CHANNEL": log_channel_raw,
+    "DATABASE_CHANNEL": DATABASE_CHANNEL,
+    "VERIFY_EXPIRE_HOURS": VERIFY_EXPIRE_HOURS,
     "SHORTENER_API": SHORTENER_API,
     "SHORTENER_WEBSITE": SHORTENER_WEBSITE,
+    "TUTORIAL_URL": TUTORIAL_URL,
 }
 
 for key, value in config_dict.items():
-    if not value:
+    if not value or str(value).strip() in ["0", "", "None"]:
         missing_keys.append(key)
 
 # सुरक्षित टाइप कन्वर्जन
 API_ID = int(API_ID) if API_ID and str(API_ID).isdigit() else 0
 VERIFY_EXPIRE_HOURS = int(VERIFY_EXPIRE_HOURS) if VERIFY_EXPIRE_HOURS and str(VERIFY_EXPIRE_HOURS).isdigit() else 24
 VERIFY_EXPIRE_TIME = VERIFY_EXPIRE_HOURS * 3600  # सेकंड्स में कन्वर्ट
+
