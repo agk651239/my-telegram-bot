@@ -440,7 +440,7 @@ async def auto_search(client, message):
         return
 
     query = message.text
-    files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=30)
+    files = await db.files.find({"name": {"$regex": query, "$options": "i"}}).to_list(length=30000)
     if not files: 
         return await message.reply("❌ कोई फाइल नहीं मिली। / No file found.")
     
