@@ -159,7 +159,7 @@ async def help_handler(client, message):
         f"🛠️ **सहायता केंद्र / Help Menu**\n\n"
         f"• **फाइल कैसे खोजें?** बोट में कोई भी नाम लिखकर सर्च करें (केवल एडमिन के लिए)।\n"
         f"• **वेरिफिकेशन प्रक्रिया:** फाइल या एल्बम लिंक पर क्लिक करने के बाद एक बार **'Verify Now'** बटन पर क्लिक करके लिंक पूरा करें। यह वेरिफिकेशन अगले **{VERIFY_EXPIRE_HOURS}** घंटों के लिए वैध रहेगा。\n"
-        f"• **ऑटो-डिलीट:** भेजी गई फाइलें सुरक्षा की दृष्टि से 1 घंटे बाद अपने आप डिलीट हो जाती हैं।\n\n"
+        f"• **ऑटो-डिलीट:** भेजी गई फाइलें सुरक्षा की दृष्टि से 1 घंटे बाद अपने आप डिलीट हो जाती हैं。\n\n"
         f"यदि आपको कोई समस्या आ रही है, तो कृपया ट्यूटोरियल लिंक की मदद लें।"
     )
     buttons = [
@@ -390,16 +390,15 @@ async def start(client, message):
                 except:
                     pass
 
-    if not await db.users.find_one({"user_id": user_id}):
-        await add_user(user_id)
-        total_users = await db.users.count_documents({})
-        try: 
-            await client.send_message(
-                LOG_CHANNEL, 
-                f"🆕 **New User Joined:** `{user_id}`\n📊 **Total Users:** `{total_users}`"
-            )
-        except Exception as e:
-            logging.error(f"Log Error (New User): {e}")
+    await add_user(user_id)
+    total_users = await db.users.count_documents({})
+    try: 
+        await client.send_message(
+            LOG_CHANNEL, 
+            f"🆕 **New User Joined:** `{user_id}`\n📊 **Total Users:** `{total_users}`"
+        )
+    except Exception as e:
+        logging.error(f"Log Error (New User): {e}")
     
     command = message.text.split(" ", 1)
     
@@ -652,9 +651,16 @@ async def plan_selected_cb(client, callback_query):
 @app.on_callback_query(filters.regex(r"^paid_"))
 async def user_paid_cb(client, callback_query):
     plan_key = callback_query.data.split("paid_")[1]
-    await db.users.update_one({"user_id": callback_query.from_user.id}, {"$set": {"pending_plan": plan_key}})
+    
+    # तुरंत डेटाबेस में सही प्लान अपडेट करें (फिक्स किया गया)
+    await db.users.update_one(
+        {"user_id": callback_query.from_user.id}, 
+        {"$set": {"pending_plan": plan_key}},
+        upsert=True
+    )
+    
     await callback_query.message.edit_text(
-        f"📤 **चयनित प्लान:** `{plan_key}`\n\n"
+        f"📤 **चयनित प्लान / Selected Plan:** `{plan_key}`\n\n"
         f"**अब अपने पेमेंट का स्क्रीनशॉट (फोटो) इस चैट में भेजें।**\n\n"
         f"Send your payment screenshot photo now."
     )
@@ -730,7 +736,7 @@ async def index_files(client, message):
         except Exception as e:
             logging.error(f"Log Error (File Upload): {e}")
 
-# --- 6. ऑटो सर्च और लाइव चैट मैसेज फॉरवर्डिंग (फिक्स किया गया) ---
+# --- 6. ऑटो सर्च और लाइव चैट मैसेज फॉरवर्डिंग ---
 @app.on_message(filters.text & ~filters.command(["start", "broadcast", "stats", "help", "setprice", "updateprice", "nobypass", "set_qr", "connect", "problemsolve", "myplan", "pricing", "plans", "users", "addadmin", "removeadmin"]))
 async def auto_search(client, message):
     user_id = message.from_user.id
