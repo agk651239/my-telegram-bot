@@ -158,7 +158,7 @@ async def help_handler(client, message):
     help_text = (
         f"🛠️ **सहायता केंद्र / Help Menu**\n\n"
         f"• **फाइल कैसे खोजें?** बोट में कोई भी नाम लिखकर सर्च करें (केवल एडमिन के लिए)।\n"
-        f"• **वेरिफिकेशन प्रक्रिया:** फाइल या एल्बम लिंक पर क्लिक करने के बाद एक बार **'Verify Now'** बटन पर क्लिक करके लिंक पूरा करें। यह वेरिफिकेशन अगले **{VERIFY_EXPIRE_HOURS}** घंटों के लिए वैध रहेगा।\n"
+        f"• **वेरिफिकेशन प्रक्रिया:** फाइल या एल्बम लिंक पर क्लिक करने के बाद एक बार **'Verify Now'** बटन पर क्लिक करके लिंक पूरा करें। यह वेरिफिकेशन अगले **{VERIFY_EXPIRE_HOURS}** घंटों के लिए वैध रहेगा。\n"
         f"• **ऑटो-डिलीट:** भेजी गई फाइलें सुरक्षा की दृष्टि से 1 घंटे बाद अपने आप डिलीट हो जाती हैं।\n\n"
         f"यदि आपको कोई समस्या आ रही है, तो कृपया ट्यूटोरियल लिंक की मदद लें।"
     )
@@ -168,7 +168,8 @@ async def help_handler(client, message):
     if TUTORIAL_URL:
         buttons.append([types.InlineKeyboardButton("❓ ट्यूटोरियल देखें / How to Verify", url=TUTORIAL_URL)])
     
-    await message.reply_text(help_text, reply_markup=types.InlineKeyboardMarkup(buttons)) 
+    await message.reply_text(help_text, reply_markup=types.InlineKeyboardMarkup(buttons))
+
 # --- 🆕 नए एडमिन कमांड्स और फीचर्स (पॉइंट 1, 2, 6, 7) ---
 
 # प्राइस सेट करना (/setprice)
@@ -284,7 +285,92 @@ async def ask_admin_cb(client, callback_query):
             await client.send_message(ADMIN_ID, f"⚠️ **नया सहायता अनुरोध (Help Request):**\nयूजर: {callback_query.from_user.mention} (`{u_id}`)\nलाइव चैट से जुड़ने के लिए भेजें: `/connect {u_id}`")
         except:
             pass
-    # --- 4. स्टार्ट कमांड (फोर्स चैनल चेकिंग + वेरिफिकेशन टाइम + प्रीमियम बटन - पॉइंट 3, 4) ---
+
+# --- नए यूजर और एडमिन कमांड्स (/myplan, /pricing, /users, /addadmin, /removeadmin) ---
+@app.on_message(filters.command("myplan"))
+async def my_plan_handler(client, message):
+    user_id = message.from_user.id
+    user_data = await db.users.find_one({"user_id": user_id})
+    if not user_data:
+        return await message.reply("❌ आपका डेटा नहीं मिला। कृपया पहले `/start` भेजें।")
+    expire_at = user_data.get("expire_at", 0)
+    current_time = time.time()
+    if user_id in ADMIN_IDS:
+        status_text = "👑 **आप एडमिन हैं (Admin Access)**\n• आपके पास असीमित और आजीवन एक्सेस है।"
+    elif expire_at == float('inf'):
+        status_text = "💎 **प्रीमियम स्टेटस: सक्रिय (Lifetime)**\n• आपका प्रीमियम लाइफटाइम के लिए वैध है।"
+    elif expire_at > current_time:
+        rem = int(expire_at - current_time)
+        hrs = rem // 3600
+        days = hrs // 24
+        time_left = f"लगभग {days} दिन बाकी हैं" if days > 0 else f"लगभग {hrs} घंटे बाकी हैं"
+        status_text = f"✅ **प्रीमियम/वेरिफिकेशन सक्रिय है**\n• वैध अवधि समाप्त होने में: `{time_left}`"
+    else:
+        status_text = "❌ **कोई सक्रिय प्लान नहीं है (Expired)**\n• फाइल डाउनलोड करने के लिए वेरीफाई करें या प्रीमियम खरीदें।"
+    buttons = [[types.InlineKeyboardButton("💎 प्रीमियम प्लान देखें / View Plans", callback_data="buy_premium_menu")]]
+    await message.reply(status_text, reply_markup=types.InlineKeyboardMarkup(buttons))
+
+@app.on_message(filters.command(["pricing", "plans"]))
+async def pricing_handler(client, message):
+    prices = await get_plan_prices()
+    text = (
+        f"💎 **उपलब्ध प्रीमियम प्लान्स और मूल्य / Available Plans & Prices:**\n\n"
+        f"• **7 दिन:** ₹{prices.get('7days', 0)}\n"
+        f"• **15 दिन:** ₹{prices.get('15days', 0)}\n"
+        f"• **30 दिन:** ₹{prices.get('30days', 0)}\n"
+        f"• **3 महीने:** ₹{prices.get('3months', 0)}\n"
+        f"• **6 महीने:** ₹{prices.get('6months', 0)}\n"
+        f"• **1 वर्ष:** ₹{prices.get('1year', 0)}\n"
+        f"• **लाइफटाइम:** ₹{prices.get('lifetime', 0)}\n\n"
+        f"खरीदने के लिए नीचे दिए गए बटन पर क्लिक करें:"
+    )
+    buttons = [[types.InlineKeyboardButton("💳 अभी खरीदें / Buy Now", callback_data="buy_premium_menu")]]
+    await message.reply(text, reply_markup=types.InlineKeyboardMarkup(buttons))
+
+@app.on_message(filters.command("users") & filters.user(ADMIN_IDS))
+async def total_users_handler(client, message):
+    total_users = await db.users.count_documents({})
+    verified_count = await db.users.count_documents({"expire_at": {"$gt": time.time()}})
+    text = (
+        f"📊 **यूजर सांख्यिकी / User Statistics:**\n\n"
+        f"👥 **कुल रजिस्टर्ड यूजर्स:** `{total_users}`\n"
+        f"✅ **सक्रिय प्रीमियम/वेरिफाइड यूजर्स:** `{verified_count}`"
+    )
+    await message.reply(text)
+
+@app.on_message(filters.command("addadmin") & filters.user(ADMIN_ID))
+async def add_admin_handler(client, message):
+    args = message.text.split()
+    if len(args) < 2:
+        return await message.reply("❌ सही फॉर्मेट: `/addadmin <user_id>`")
+    try:
+        new_adm = int(args[1])
+    except ValueError:
+        return await message.reply("❌ यूजर आईडी केवल अंक होनी चाहिए।")
+    if new_adm in ADMIN_IDS:
+        return await message.reply("⚠️ यह यूजर पहले से ही एडमिन सूची में है।")
+    await db.settings.update_one({"type": "extra_admins"}, {"$addToSet": {"admins": new_adm}}, upsert=True)
+    if new_adm not in ADMIN_IDS:
+        ADMIN_IDS.append(new_adm)
+    await message.reply(f"✅ यूजर `{new_adm}` को सफलताપूर्व एडमिन बना दिया गया है!")
+
+@app.on_message(filters.command("removeadmin") & filters.user(ADMIN_ID))
+async def remove_admin_handler(client, message):
+    args = message.text.split()
+    if len(args) < 2:
+        return await message.reply("❌ सही फॉर्मेट: `/removeadmin <user_id>`")
+    try:
+        old_adm = int(args[1])
+    except ValueError:
+        return await message.reply("❌ यूजर आईडी केवल अंक होनी चाहिए।")
+    if old_adm == ADMIN_ID:
+        return await message.reply("❌ मुख्य एडमिन को हटाया नहीं जा सकता!")
+    await db.settings.update_one({"type": "extra_admins"}, {"$pull": {"admins": old_adm}})
+    if old_adm in ADMIN_IDS:
+        ADMIN_IDS.remove(old_adm)
+    await message.reply(f"✅ यूजर `{old_adm}` को एडमिन सूची से हटा दिया गया है।")
+
+# --- 4. स्टार्ट कमांड (फोर्स चैनल चेकिंग + वेरिफिकेशन टाइम + प्रीमियम बटन - पॉइंट 3, 4) ---
 @app.on_message(filters.command("start"))
 async def start(client, message):
     if not message.from_user:
@@ -427,7 +513,6 @@ async def start(client, message):
             except Exception as e:
                 logging.error(f"Log Error (Verification Pending File): {e}")
 
-            # पॉइंट 3: तीसरा 'प्रीमियम खरीदें' बटन जोड़ा गया
             buttons = [
                 [types.InlineKeyboardButton("🔗 अभी वेरिफ़ाई करें / Verify Now", url=short_link)],
                 [types.InlineKeyboardButton("💎 प्रीमियम खरीदें / Buy Premium", callback_data="buy_premium_menu")],
@@ -521,18 +606,18 @@ async def start(client, message):
         
     await message.reply(START_MESSAGE)
 
-# --- 💡 प्रीमियम खरीद प्रक्रिया (Buy Premium Flow - पॉइंट्स 4, 5) ---
+# --- 💡 प्रीमियम खरीद प्रक्रिया (Buy Premium Flow - बिना फिक्स प्राइस के) ---
 @app.on_callback_query(filters.regex("buy_premium_menu"))
 async def buy_premium_menu_cb(client, callback_query):
     prices = await get_plan_prices()
     buttons = [
-        [types.InlineKeyboardButton(f"7 दिन (Days) - ₹{prices.get('7days', 49)}", callback_data="buyplan_7days"),
-         types.InlineKeyboardButton(f"15 दिन (Days) - ₹{prices.get('15days', 79)}", callback_data="buyplan_15days")],
-        [types.InlineKeyboardButton(f"30 दिन (Days) - ₹{prices.get('30days', 129)}", callback_data="buyplan_30days"),
-         types.InlineKeyboardButton(f"3 महीने (Months) - ₹{prices.get('3months', 299)}", callback_data="buyplan_3months")],
-        [types.InlineKeyboardButton(f"6 महीने (Months) - ₹{prices.get('6months', 499)}", callback_data="buyplan_6months"),
-         types.InlineKeyboardButton(f"1 वर्ष (Year) - ₹{prices.get('1year', 799)}", callback_data="buyplan_1year")],
-        [types.InlineKeyboardButton(f"लाइफटाइम (Lifetime) - ₹{prices.get('lifetime', 1499)}", callback_data="buyplan_lifetime")]
+        [types.InlineKeyboardButton(f"7 दिन (Days) - ₹{prices.get('7days', 0)}", callback_data="buyplan_7days"),
+         types.InlineKeyboardButton(f"15 दिन (Days) - ₹{prices.get('15days', 0)}", callback_data="buyplan_15days")],
+        [types.InlineKeyboardButton(f"30 दिन (Days) - ₹{prices.get('30days', 0)}", callback_data="buyplan_30days"),
+         types.InlineKeyboardButton(f"3 महीने (Months) - ₹{prices.get('3months', 0)}", callback_data="buyplan_3months")],
+        [types.InlineKeyboardButton(f"6 महीने (Months) - ₹{prices.get('6months', 0)}", callback_data="buyplan_6months"),
+         types.InlineKeyboardButton(f"1 वर्ष (Year) - ₹{prices.get('1year', 0)}", callback_data="buyplan_1year")],
+        [types.InlineKeyboardButton(f"लाइफटाइम (Lifetime) - ₹{prices.get('lifetime', 0)}", callback_data="buyplan_lifetime")]
     ]
     await callback_query.message.edit_text("💎 **अपना प्रीमियम प्लान चुनें / Select Your Premium Plan:**", reply_markup=types.InlineKeyboardMarkup(buttons))
     await callback_query.answer()
@@ -541,7 +626,7 @@ async def buy_premium_menu_cb(client, callback_query):
 async def plan_selected_cb(client, callback_query):
     plan_key = callback_query.data.split("buyplan_")[1]
     prices = await get_plan_prices()
-    amount = prices.get(plan_key, 99)
+    amount = prices.get(plan_key, 0)
     
     qr_id = await get_qr_code()
     pay_text = (
@@ -642,9 +727,8 @@ async def index_files(client, message):
             logging.error(f"Log Error (File Upload): {e}")
 
 # --- 6. ऑटो सर्च (Admin Access Only) ---
-@app.on_message(filters.text & ~filters.command(["start", "broadcast", "stats", "help", "setprice", "updateprice", "nobypass", "set_qr", "connect", "problemsolve"]))
+@app.on_message(filters.text & ~filters.command(["start", "broadcast", "stats", "help", "setprice", "updateprice", "nobypass", "set_qr", "connect", "problemsolve", "myplan", "pricing", "plans", "users", "addadmin", "removeadmin"]))
 async def auto_search(client, message):
-    # यदि एडमिन लाइव चैट मोड में है तो मैसेज फॉरवर्ड न हो, वर्ना सर्च करें
     live_data = await db.settings.find_one({"type": "live_chat"})
     if live_data and message.from_user.id in ADMIN_IDS:
         u_id = live_data.get("active_user")
@@ -691,14 +775,10 @@ if __name__ == "__main__":
         app.start()
         print("✅ Bot is online!")
         
-        # मिसिंग कीज़ अलर्ट चेक करें
         loop.run_until_complete(send_missing_keys_alert())
         
         try:
             resolved_log_channel = LOG_CHANNEL
-            if isinstance(LOG_CHANNEL, str):
-                if "t.me/" in LOG_CHANNEL:
-                    resolved_log_channel = LOG_CHANNEL
             if isinstance(LOG_CHANNEL, str):
                 if "t.me/" in LOG_CHANNEL:
                     resolved_log_channel = "@" + LOG_CHANNEL.strip("/").split("t.me/")[-1]
@@ -718,4 +798,4 @@ if __name__ == "__main__":
         print(f"❌ Error: {e}")
     finally:
         app.stop()
-        
+                
