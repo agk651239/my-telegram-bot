@@ -28,7 +28,7 @@ app = Client(
 # एल्बम प्रोसेसिंग के लिए सेट
 processed_albums = set()
 
-# --- फंक्शन: मैसेज ऑटो-डिलीट (3600 सेकंड = 1 घंटा) ---
+# --- फंक्शन: मैसेज ऑटो-डिलीट (3600 सेकंड = 1 घंटा - पॉइंट 8) ---
 async def delete_after_delay(message, delay):
     await asyncio.sleep(delay)
     try:
@@ -152,7 +152,7 @@ async def stats_handler(client, message):
     except Exception as e:
         logging.error(f"Log Error (/stats): {e}")
 
-# --- 3. हेल्प कमांड (/help) ---
+# --- 3. हेल्प कमांड (/help - पॉइंट 9: यह डिलीट नहीं होगा) ---
 @app.on_message(filters.command("help"))
 async def help_handler(client, message):
     help_text = (
@@ -162,13 +162,129 @@ async def help_handler(client, message):
         f"• **ऑटो-डिलीट:** भेजी गई फाइलें सुरक्षा की दृष्टि से 1 घंटे बाद अपने आप डिलीट हो जाती हैं।\n\n"
         f"यदि आपको कोई समस्या आ रही है, तो कृपया ट्यूटोरियल लिंक की मदद लें।"
     )
-    buttons = []
+    buttons = [
+        [types.InlineKeyboardButton("💬 एडमिन से बात करें / Contact Admin", callback_data="ask_admin")]
+    ]
     if TUTORIAL_URL:
         buttons.append([types.InlineKeyboardButton("❓ ट्यूटोरियल देखें / How to Verify", url=TUTORIAL_URL)])
     
-    await message.reply_text(help_text, reply_markup=types.InlineKeyboardMarkup(buttons) if buttons else None) 
+    await message.reply_text(help_text, reply_markup=types.InlineKeyboardMarkup(buttons)) 
+# --- 🆕 नए एडमिन कमांड्स और फीचर्स (पॉइंट 1, 2, 6, 7) ---
 
-# --- 4. स्टार्ट कमांड (फोर्स चैनल चेकिंग + वेरिफिकेशन टाइम मैसेज के साथ) ---
+# प्राइस सेट करना (/setprice)
+@app.on_message(filters.command("setprice") & filters.user(ADMIN_IDS))
+async def setprice_cmd(client, message):
+    prices = await get_plan_prices()
+    text = "💰 **वर्तमान प्लान प्राइसेस / Current Plan Prices:**\n\n"
+    for k, v in prices.items():
+        text += f"• `{k}`: ₹{v}\n"
+    text += "\nबदलाव के लिए भेजें: `/updateprice <plan_key> <price>`\nउदा: `/updateprice 30days 150`"
+    await message.reply(text)
+
+@app.on_message(filters.command("updateprice") & filters.user(ADMIN_IDS))
+async def updateprice_cmd(client, message):
+    args = message.text.split()
+    if len(args) < 3:
+        return await message.reply("❌ सही फॉर्मेट: `/updateprice 30days 150`")
+    plan_key, price = args[1], int(args[2])
+    await set_plan_price(plan_key, price)
+    await message.reply(f"✅ प्लान `{plan_key}` का नया प्राइस ₹{price} सेट हो गया है!")
+
+# नो-बायपास सेट करना (/nobypass <user_id>)
+@app.on_message(filters.command("nobypass") & filters.user(ADMIN_IDS))
+async def nobypass_cmd(client, message):
+    args = message.text.split()
+    if len(args) < 2:
+        return await message.reply("❌ सही फॉर्मेट: `/nobypass <user_id>`")
+    try:
+        target_user = int(args[1])
+    except ValueError:
+        return await message.reply("❌ यूजर आईडी सही संख्या होनी चाहिए।")
+    
+    buttons = [
+        [types.InlineKeyboardButton("7 दिन / Days", callback_data=f"nb_{target_user}_7"),
+         types.InlineKeyboardButton("30 दिन / Days", callback_data=f"nb_{target_user}_30")],
+        [types.InlineKeyboardButton("3 महीने / Months", callback_data=f"nb_{target_user}_90"),
+         types.InlineKeyboardButton("लाइफटाइम / Lifetime", callback_data=f"nb_{target_user}_life")]
+    ]
+    await message.reply(f"⏳ यूजर `{target_user}` के लिए प्रीमियम अवधि चुनें:", reply_markup=types.InlineKeyboardMarkup(buttons))
+
+@app.on_callback_query(filters.regex(r"^nb_"))
+async def nobypass_callback(client, callback_query):
+    if callback_query.from_user.id not in ADMIN_IDS:
+        return await callback_query.answer("❌ आप एडमिन नहीं हैं!", show_alert=True)
+    
+    _, target_user, duration_type = callback_query.data.split("_")
+    target_user = int(target_user)
+    
+    if duration_type == "life":
+        seconds = -1
+        text_msg = "Lifetime (अनंत काल)"
+    else:
+        days = int(duration_type)
+        seconds = days * 86400
+        text_msg = f"{days} दिन (Days)"
+        
+    await set_user_premium_duration(target_user, seconds)
+    await callback_query.message.edit_text(f"✅ यूजर `{target_user}` को सफलताપूर्व {text_msg} के लिए प्रीमियम/बायपास दे दिया गया है!")
+    try:
+        await client.send_message(target_user, f"🎉 **बधाई हो!** एडमिन द्वारा आपको {text_msg} के लिए प्रीमियम एक्सेस दे दिया गया है। अब आप बिना किसी रुकावट के फाइलें डाउनलोड कर सकते हैं।")
+    except:
+        pass
+
+# QR कोड अपडेट करना (/set_qr)
+@app.on_message(filters.command("set_qr") & filters.user(ADMIN_IDS))
+async def set_qr_cmd(client, message):
+    if not message.reply_to_message or not message.reply_to_message.photo:
+        return await message.reply("❌ कृपया नए QR कोड की फोटो पर रिप्लाई करके `/set_qr` लिखें।")
+    photo_id = message.reply_to_message.photo.file_id
+    await save_qr_code(photo_id)
+    await message.reply("✅ नया पेमेंट QR कोड सफलताપूर्व अपडेट हो गया है!")
+
+# लाइव चैट सिस्टम (/connect और /problemsolve)
+@app.on_message(filters.command("connect") & filters.user(ADMIN_IDS))
+async def connect_cmd(client, message):
+    args = message.text.split()
+    if len(args) < 2:
+        return await message.reply("❌ सही फॉर्मेट: `/connect <user_id>`")
+    try:
+        u_id = int(args[1])
+    except:
+        return await message.reply("❌ अमान्य यूजर आईडी।")
+    
+    await db.settings.update_one({"type": "live_chat"}, {"$set": {"active_admin": message.from_user.id, "active_user": u_id}}, upsert=True)
+    await message.reply(f"🟢 यूजर `{u_id}` के साथ लाइव चैट शुरू हो गई है। अब आप जो भी मैसेज भेजेंगे वह यूजर को जाएगा।")
+    try:
+        await client.send_message(u_id, "💬 **एडमिन आपके साथ लाइव चैट पर जुड़ गए हैं। आप अपनी समस्या यहाँ बता सकते हैं।**")
+    except:
+        pass
+
+@app.on_message(filters.command("problemsolve") & filters.user(ADMIN_IDS))
+async def problemsolve_cmd(client, message):
+    res = await db.settings.find_one({"type": "live_chat"})
+    if res and res.get("active_user"):
+        u_id = res["active_user"]
+        await db.settings.delete_one({"type": "live_chat"})
+        await message.reply(f"🔴 यूजर `{u_id}` के साथ लाइव चैट सत्र बंद कर दिया गया है।")
+        try:
+            await client.send_message(u_id, "🔒 **एडमिन ने आपकी समस्या का समाधान कर दिया है और चैट सत्र समाप्त कर दिया है।**")
+        except:
+            pass
+    else:
+        await message.reply("❌ कोई भी सक्रिय लाइव चैट सत्र नहीं है।")
+
+@app.on_callback_query(filters.regex("ask_admin"))
+async def ask_admin_cb(client, callback_query):
+    u_id = callback_query.from_user.id
+    await db.settings.update_one({"type": "live_chat"}, {"$set": {"active_user": u_id}}, upsert=True)
+    await callback_query.message.reply("✅ आपका अनुरोध एडमिन तक पहुँचा दिया गया है। कृपया अपनी समस्या यहाँ लिखकर भेजें, एडमिन जल्द ही आपसे जुड़ेंगे।")
+    await callback_query.answer()
+    if ADMIN_ID:
+        try:
+            await client.send_message(ADMIN_ID, f"⚠️ **नया सहायता अनुरोध (Help Request):**\nयूजर: {callback_query.from_user.mention} (`{u_id}`)\nलाइव चैट से जुड़ने के लिए भेजें: `/connect {u_id}`")
+        except:
+            pass
+    # --- 4. स्टार्ट कमांड (फोर्स चैनल चेकिंग + वेरिफिकेशन टाइम + प्रीमियम बटन - पॉइंट 3, 4) ---
 @app.on_message(filters.command("start"))
 async def start(client, message):
     if not message.from_user:
@@ -176,6 +292,18 @@ async def start(client, message):
     user_id = message.from_user.id
     is_admin = (user_id in ADMIN_IDS)
     
+    # लाइव चैट मैसेज फॉरवर्डिंग (यदि यूजर चैट मोड में है)
+    live_data = await db.settings.find_one({"type": "live_chat"})
+    if live_data and not is_admin:
+        if live_data.get("active_user") == user_id:
+            adm = live_data.get("active_admin")
+            if adm:
+                try:
+                    await message.forward(adm)
+                    return
+                except:
+                    pass
+
     if not await db.users.find_one({"user_id": user_id}):
         await add_user(user_id)
         total_users = await db.users.count_documents({})
@@ -218,7 +346,7 @@ async def start(client, message):
 
         await message.reply(
             f"✅ **वेरिफ़िकेशन सफल रहा! / Verification Successful!**\n\n"
-            f"अब आप अगले {VERIFY_EXPIRE_HOURS} घंटों के लिए असीमित फाइलें और एल्बम डाउनलोड कर सकते हैं।\n"
+            f"अब आप अगले {VERIFY_EXPIRE_HOURS} घंटों के लिए असीमित फाइलें और एल्बम डाउनलोड कर सकते हैं。\n"
             "Now you can download files seamlessly. Send your link again!"
         )
         return
@@ -299,14 +427,16 @@ async def start(client, message):
             except Exception as e:
                 logging.error(f"Log Error (Verification Pending File): {e}")
 
+            # पॉइंट 3: तीसरा 'प्रीमियम खरीदें' बटन जोड़ा गया
             buttons = [
                 [types.InlineKeyboardButton("🔗 अभी वेरिफ़ाई करें / Verify Now", url=short_link)],
+                [types.InlineKeyboardButton("💎 प्रीमियम खरीदें / Buy Premium", callback_data="buy_premium_menu")],
                 [types.InlineKeyboardButton("❓ वेरिफ़ाई कैसे करें? / How to Verify?", url=TUTORIAL_URL)]
             ]
             await message.reply(
                 f"🔐 **वेरिफ़िकेशन आवश्यक है / Verification Required**\n\n"
                 f"Verify once to get unlimited access for the next {VERIFY_EXPIRE_HOURS} hours.\n"
-                f"अगले {VERIFY_EXPIRE_HOURS} घंटों के लिए असीमित फाइल डाउनलोड करने हेतु एक बार वेरिफ़ाई करें।",
+                f"अगले {VERIFY_EXPIRE_HOURS} घंटों के लिए असीमित फाइल डाउनलोड करने हेतु एक बार वेरिफ़ाई करें या प्रीमियम लें।",
                 reply_markup=types.InlineKeyboardMarkup(buttons)
             )
             return
@@ -342,12 +472,13 @@ async def start(client, message):
 
             buttons = [
                 [types.InlineKeyboardButton("🔗 अभी वेरिफ़ाई करें / Verify Now", url=short_link)],
+                [types.InlineKeyboardButton("💎 प्रीमियम खरीदें / Buy Premium", callback_data="buy_premium_menu")],
                 [types.InlineKeyboardButton("❓ वेरिफ़ाई कैसे करें? / How to Verify?", url=TUTORIAL_URL)]
             ]
             await message.reply(
                 f"🔐 **वेरिफ़िकेशन आवश्यक है / Verification Required**\n\n"
                 f"Verify once to get unlimited access for the next {VERIFY_EXPIRE_HOURS} hours.\n"
-                f"अगले {VERIFY_EXPIRE_HOURS} घंटों के लिए असीमित एल्बम डाउनलोड करने हेतु एक बार वेरिफ़ाई करें।",
+                f"अगले {VERIFY_EXPIRE_HOURS} घंटों के लिए असीमित एल्बम डाउनलोड करने हेतु एक बार वेरिफ़ाई करें या प्रीमियम लें।",
                 reply_markup=types.InlineKeyboardMarkup(buttons)
             )
             return
@@ -389,6 +520,83 @@ async def start(client, message):
         return
         
     await message.reply(START_MESSAGE)
+
+# --- 💡 प्रीमियम खरीद प्रक्रिया (Buy Premium Flow - पॉइंट्स 4, 5) ---
+@app.on_callback_query(filters.regex("buy_premium_menu"))
+async def buy_premium_menu_cb(client, callback_query):
+    prices = await get_plan_prices()
+    buttons = [
+        [types.InlineKeyboardButton(f"7 दिन (Days) - ₹{prices.get('7days', 49)}", callback_data="buyplan_7days"),
+         types.InlineKeyboardButton(f"15 दिन (Days) - ₹{prices.get('15days', 79)}", callback_data="buyplan_15days")],
+        [types.InlineKeyboardButton(f"30 दिन (Days) - ₹{prices.get('30days', 129)}", callback_data="buyplan_30days"),
+         types.InlineKeyboardButton(f"3 महीने (Months) - ₹{prices.get('3months', 299)}", callback_data="buyplan_3months")],
+        [types.InlineKeyboardButton(f"6 महीने (Months) - ₹{prices.get('6months', 499)}", callback_data="buyplan_6months"),
+         types.InlineKeyboardButton(f"1 वर्ष (Year) - ₹{prices.get('1year', 799)}", callback_data="buyplan_1year")],
+        [types.InlineKeyboardButton(f"लाइफटाइम (Lifetime) - ₹{prices.get('lifetime', 1499)}", callback_data="buyplan_lifetime")]
+    ]
+    await callback_query.message.edit_text("💎 **अपना प्रीमियम प्लान चुनें / Select Your Premium Plan:**", reply_markup=types.InlineKeyboardMarkup(buttons))
+    await callback_query.answer()
+
+@app.on_callback_query(filters.regex(r"^buyplan_"))
+async def plan_selected_cb(client, callback_query):
+    plan_key = callback_query.data.split("buyplan_")[1]
+    prices = await get_plan_prices()
+    amount = prices.get(plan_key, 99)
+    
+    qr_id = await get_qr_code()
+    pay_text = (
+        f"💳 **प्रीमियम पेमेंट विवरण / Payment Details**\n\n"
+        f"• **चयनित प्लान / Selected Plan:** `{plan_key}`\n"
+        f"• **राशि / Amount:** `₹{amount}`\n"
+        f"• **UPI ID:** `{UPI_ID}`\n\n"
+        f"कृपया ऊपर दिए गए UPI ID या QR Code पर भुगतान करें, और भुगतान करने के बाद नीचे दिए गए बटन पर क्लिक करके **पेमेंट का स्क्रीनशॉट (फोटो)** भेजें।"
+    )
+    buttons = [[types.InlineKeyboardButton("✅ मैंने पेमेंट कर दिया है (I have Paid)", callback_data=f"paid_{plan_key}")]]
+    
+    if qr_id:
+        try:
+            await client.send_photo(callback_query.message.chat.id, qr_id, caption=pay_text, reply_markup=types.InlineKeyboardMarkup(buttons))
+            await callback_query.message.delete()
+            return
+        except:
+            pass
+    
+    await callback_query.message.edit_text(pay_text, reply_markup=types.InlineKeyboardMarkup(buttons))
+    await callback_query.answer()
+
+@app.on_callback_query(filters.regex(r"^paid_"))
+async def user_paid_cb(client, callback_query):
+    plan_key = callback_query.data.split("paid_")[1]
+    await db.users.update_one({"user_id": callback_query.from_user.id}, {"$set": {"pending_plan": plan_key}})
+    await callback_query.message.edit_text("📤 **अब अपने पेमेंट का स्क्रीनशॉट (फोटो) इस चैट में भेजें।**\n\nSend your payment screenshot photo now.")
+    await callback_query.answer()
+
+@app.on_message(filters.photo)
+async def payment_screenshot_handler(client, message):
+    user_id = message.from_user.id
+    if user_id in ADMIN_IDS:
+        return
+    
+    user_data = await db.users.find_one({"user_id": user_id})
+    pending_plan = user_data.get("pending_plan", "Unknown") if user_data else "Unknown"
+    
+    if ADMIN_ID:
+        try:
+            caption = (
+                f"💳 **नया पेमेंट स्क्रीनशॉट प्राप्त हुआ!**\n\n"
+                f"👤 यूजर: {message.from_user.mention} (`{user_id}`)\n"
+                f"📦 प्लान: `{pending_plan}`\n\n"
+                f"इसे एक्टिव करने के लिए नीचे क्लिक करें:"
+            )
+            days_map = {"7days": 7, "15days": 15, "30days": 30, "3months": 90, "6months": 180, "1year": 365, "lifetime": -1}
+            d_val = days_map.get(pending_plan, 30)
+            
+            buttons = [[types.InlineKeyboardButton("⚡ प्रीमियम एक्टिव करें (/nobypass)", callback_data=f"nb_{user_id}_{d_val if d_val != -1 else 'life'}")]]
+            await message.forward(ADMIN_ID)
+            await client.send_message(ADMIN_ID, caption, reply_markup=types.InlineKeyboardMarkup(buttons))
+            await message.reply("✅ **आपका पेमेंट स्क्रीनशॉट एडमिन के पास भेज दिया गया है।**\nजाँच के बाद आपका प्रीमियम एक्टिव कर दिया जाएगा।")
+        except Exception as e:
+            await message.reply(f"❌ एरर: {e}")
 
 # --- 5. फाइल इंडेक्सिंग ---
 @app.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video | filters.photo))
@@ -434,8 +642,19 @@ async def index_files(client, message):
             logging.error(f"Log Error (File Upload): {e}")
 
 # --- 6. ऑटो सर्च (Admin Access Only) ---
-@app.on_message(filters.text & ~filters.command(["start", "broadcast", "stats", "help"]))
+@app.on_message(filters.text & ~filters.command(["start", "broadcast", "stats", "help", "setprice", "updateprice", "nobypass", "set_qr", "connect", "problemsolve"]))
 async def auto_search(client, message):
+    # यदि एडमिन लाइव चैट मोड में है तो मैसेज फॉरवर्ड न हो, वर्ना सर्च करें
+    live_data = await db.settings.find_one({"type": "live_chat"})
+    if live_data and message.from_user.id in ADMIN_IDS:
+        u_id = live_data.get("active_user")
+        if u_id and message.reply_to_message:
+            try:
+                await message.copy(u_id)
+                return
+            except:
+                pass
+
     if not message.from_user or message.from_user.id not in ADMIN_IDS:
         return
 
@@ -479,6 +698,9 @@ if __name__ == "__main__":
             resolved_log_channel = LOG_CHANNEL
             if isinstance(LOG_CHANNEL, str):
                 if "t.me/" in LOG_CHANNEL:
+                    resolved_log_channel = LOG_CHANNEL
+            if isinstance(LOG_CHANNEL, str):
+                if "t.me/" in LOG_CHANNEL:
                     resolved_log_channel = "@" + LOG_CHANNEL.strip("/").split("t.me/")[-1]
                 elif not LOG_CHANNEL.startswith("@") and not LOG_CHANNEL.startswith("-") and not LOG_CHANNEL.isdigit():
                     resolved_log_channel = "@" + LOG_CHANNEL
@@ -497,4 +719,3 @@ if __name__ == "__main__":
     finally:
         app.stop()
         
-    
