@@ -98,5 +98,5 @@ VERIFY_EXPIRE_TIME = VERIFY_EXPIRE_HOURS * 3600  # सेकंड्स मे�
 # =========================================================================
 
 # पेमेंट और यूपीआई आईडी (आप चाहें तो एनवायरनमेंट वेरिएबल से लें या यहाँ डायरेक्ट लिख सकते हैं)
-UPI_ID = os.environ.get("UPI_ID", "yourupi@okhdfcbank") # अपनी UPI ID यहाँ डालें
+UPI_ID = os.environ.get("UPI_ID", "agk651239@nyes") # अपनी UPI ID यहाँ डालें
 PAYMENT_QR_DEFAULT = os.environ.get("PAYMENT_QR_DEFAULT", "") # डिफ़ॉल्ट QR फोटो फाइल आईडी (अगर हो)
