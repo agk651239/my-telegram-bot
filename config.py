@@ -91,3 +91,12 @@ for key, value in config_dict.items():
 API_ID = int(API_ID) if API_ID and str(API_ID).isdigit() else 0
 VERIFY_EXPIRE_HOURS = int(VERIFY_EXPIRE_HOURS) if VERIFY_EXPIRE_HOURS and str(VERIFY_EXPIRE_HOURS).isdigit() else 24
 VERIFY_EXPIRE_TIME = VERIFY_EXPIRE_HOURS * 3600  # सेकंड्स में कन्वर्ट
+
+
+# =========================================================================
+# 🆕 नए फीचर्स के लिए एक्स्ट्रा सेटिंग्स (यहाँ से नीचे नए पॉइंट्स जोड़े गए हैं)
+# =========================================================================
+
+# पेमेंट और यूपीआई आईडी (आप चाहें तो एनवायरनमेंट वेरिएबल से लें या यहाँ डायरेक्ट लिख सकते हैं)
+UPI_ID = os.environ.get("UPI_ID", "yourupi@okhdfcbank") # अपनी UPI ID यहाँ डालें
+PAYMENT_QR_DEFAULT = os.environ.get("PAYMENT_QR_DEFAULT", "") # डिफ़ॉल्ट QR फोटो फाइल आईडी (अगर हो)
