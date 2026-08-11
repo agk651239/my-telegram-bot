@@ -113,4 +113,66 @@ async def get_file_by_id(fid):
     except Exception as e:
         logger.error(f"❌ फाइल फेच एरर: {e}")
         return None
+
+
+# =========================================================================
+# 🆕 नए फीचर्स के लिए डेटाबेस फंक्शन्स (यहाँ से नीचे नए पॉइंट्स जोड़े गए हैं)
+# =========================================================================
+
+# 1. प्राइस मैनेजमेंट (Prices Update & Get)
+async def set_plan_price(plan_key: str, price: int):
+    try:
+        await db.settings.update_one(
+            {"type": "prices"},
+            {"$set": {plan_key: price}},
+            upsert=True
+        )
+    except Exception as e:
+        logger.error(f"❌ Price Set Error: {e}")
+
+async def get_plan_prices():
+    try:
+        res = await db.settings.find_one({"type": "prices"})
+        if res:
+            return res
+        # डिफ़ॉल्ट प्राइसेस अगर डेटाबेस में न हों
+        return {"7days": 49, "15days": 79, "30days": 129, "3months": 299, "6months": 499, "1year": 799, "lifetime": 1499}
+    except Exception as e:
+        logger.error(e)
+        return {}
+
+# 2. नो-बायपास / प्रीमियम यूजर टाइम सेट करना (/nobypass)
+async def set_user_premium_duration(user_id: int, duration_seconds: int):
+    try:
+        if duration_seconds == -1: # लाइफटाइम के लिए
+            expire_time = float('inf')
+        else:
+            expire_time = time.time() + duration_seconds
+            
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"expire_at": expire_time}},
+            upsert=True
+        )
+    except Exception as e:
+        logger.error(f"❌ Set No-Bypass Error: {e}")
+
+# 3. QR Code डेटाबेस में सेव और फेच करना (/set_qr)
+async def save_qr_code(file_id: str):
+    try:
+        await db.settings.update_one(
+            {"type": "qrcode"},
+            {"$set": {"file_id": file_id}},
+            upsert=True
+        )
+    except Exception as e:
+        logger.error(f"❌ Save QR Error: {e}")
+
+async def get_qr_code():
+    try:
+        res = await db.settings.find_one({"type": "qrcode"})
+        return res.get("file_id") if res else None
+    except Exception as e:
+        logger.error(f"❌ Get QR Error: {e}")
+        return None
         
