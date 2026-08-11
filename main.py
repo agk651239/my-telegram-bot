@@ -653,7 +653,11 @@ async def plan_selected_cb(client, callback_query):
 async def user_paid_cb(client, callback_query):
     plan_key = callback_query.data.split("paid_")[1]
     await db.users.update_one({"user_id": callback_query.from_user.id}, {"$set": {"pending_plan": plan_key}})
-    await callback_query.message.edit_text("📤 **अब अपने पेमेंट का स्क्रीनशॉट (फोटो) इस चैट में भेजें।**\n\nSend your payment screenshot photo now.")
+    await callback_query.message.edit_text(
+        f"📤 **चयनित प्लान:** `{plan_key}`\n\n"
+        f"**अब अपने पेमेंट का स्क्रीनशॉट (फोटो) इस चैट में भेजें।**\n\n"
+        f"Send your payment screenshot photo now."
+    )
     await callback_query.answer()
 
 @app.on_message(filters.photo)
@@ -663,7 +667,7 @@ async def payment_screenshot_handler(client, message):
         return
     
     user_data = await db.users.find_one({"user_id": user_id})
-    pending_plan = user_data.get("pending_plan", "Unknown") if user_data else "Unknown"
+    pending_plan = user_data.get("pending_plan", "30days") if user_data else "30days"
     
     if ADMIN_ID:
         try:
@@ -726,20 +730,36 @@ async def index_files(client, message):
         except Exception as e:
             logging.error(f"Log Error (File Upload): {e}")
 
-# --- 6. ऑटो सर्च (Admin Access Only) ---
+# --- 6. ऑटो सर्च और लाइव चैट मैसेज फॉरवर्डिंग (फिक्स किया गया) ---
 @app.on_message(filters.text & ~filters.command(["start", "broadcast", "stats", "help", "setprice", "updateprice", "nobypass", "set_qr", "connect", "problemsolve", "myplan", "pricing", "plans", "users", "addadmin", "removeadmin"]))
 async def auto_search(client, message):
+    user_id = message.from_user.id
+    
+    # 1. यदि एडमिन लाइव चैट मोड में है तो मैसेज सीधे यूजर को जाए
+    if user_id in ADMIN_IDS:
+        live_data = await db.settings.find_one({"type": "live_chat"})
+        if live_data and live_data.get("active_admin") == user_id:
+            u_id = live_data.get("active_user")
+            if u_id:
+                try:
+                    await message.copy(u_id)
+                    return
+                except Exception as e:
+                    await message.reply(f"❌ यूजर को भेजने में एरर: {e}")
+                    return
+
+    # 2. यदि यूजर लाइव चैट मोड में है तो मैसेज सीधे एडमिन को जाए
     live_data = await db.settings.find_one({"type": "live_chat"})
-    if live_data and message.from_user.id in ADMIN_IDS:
-        u_id = live_data.get("active_user")
-        if u_id and message.reply_to_message:
+    if live_data and live_data.get("active_user") == user_id:
+        adm = live_data.get("active_admin")
+        if adm:
             try:
-                await message.copy(u_id)
+                await message.forward(adm)
                 return
             except:
                 pass
 
-    if not message.from_user or message.from_user.id not in ADMIN_IDS:
+    if user_id not in ADMIN_IDS:
         return
 
     query = message.text
@@ -798,4 +818,4 @@ if __name__ == "__main__":
         print(f"❌ Error: {e}")
     finally:
         app.stop()
-                
+        
