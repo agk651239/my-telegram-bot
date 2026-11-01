@@ -3,8 +3,8 @@ from pyrogram.errors import UserIsBlocked, InputUserDeactivated
 import asyncio
 import logging
 import time
-from config import ADMIN_IDS, ADMIN_ID, LOG_CHANNEL
-from database import db, get_plan_prices, set_plan_price, set_user_premium_duration, save_qr_code
+from config import *
+from database import * 
 
 # --- 1. ब्रॉडकास्ट कमांड ---
 @Client.on_message(filters.command("broadcast") & filters.user(ADMIN_IDS))
@@ -55,7 +55,7 @@ async def stats_handler(client, message):
     except Exception as e:
         logging.error(f"Log Error (/stats): {e}")
 
-# --- 3. प्राइस सेट करना (/setprice, /updateprice) ---
+# प्राइस सेट करना (/setprice)
 @Client.on_message(filters.command("setprice") & filters.user(ADMIN_IDS))
 async def setprice_cmd(client, message):
     prices = await get_plan_prices()
@@ -74,7 +74,7 @@ async def updateprice_cmd(client, message):
     await set_plan_price(plan_key, price)
     await message.reply(f"✅ प्लान `{plan_key}` का नया प्राइस ₹{price} सेट हो गया है!")
 
-# --- 4. नो-बायपास सेट करना (/nobypass) ---
+# नो-बायपास सेट करना (/nobypass <user_id>)
 @Client.on_message(filters.command("nobypass") & filters.user(ADMIN_IDS))
 async def nobypass_cmd(client, message):
     args = message.text.split()
@@ -116,7 +116,7 @@ async def nobypass_callback(client, callback_query):
     except:
         pass
 
-# --- 5. QR कोड अपडेट करना (/set_qr) ---
+# QR कोड अपडेट करना (/set_qr)
 @Client.on_message(filters.command("set_qr") & filters.user(ADMIN_IDS))
 async def set_qr_cmd(client, message):
     if not message.reply_to_message or not message.reply_to_message.photo:
@@ -125,7 +125,7 @@ async def set_qr_cmd(client, message):
     await save_qr_code(photo_id)
     await message.reply("✅ नया पेमेंट QR कोड सफलतापूर्वक अपडेट हो गया है!")
 
-# --- 6. लाइव चैट सिस्टम (/connect और /problemsolve) ---
+# लाइव चैट सिस्टम (/connect और /problemsolve)
 @Client.on_message(filters.command("connect") & filters.user(ADMIN_IDS))
 async def connect_cmd(client, message):
     args = message.text.split()
@@ -157,7 +157,6 @@ async def problemsolve_cmd(client, message):
     else:
         await message.reply("❌ कोई भी सक्रिय लाइव चैट सत्र नहीं है।")
 
-# --- 7. यूजर सांख्यिकी (/users) ---
 @Client.on_message(filters.command("users") & filters.user(ADMIN_IDS))
 async def total_users_handler(client, message):
     total_users = await db.users.count_documents({})
@@ -169,7 +168,6 @@ async def total_users_handler(client, message):
     )
     await message.reply(text)
 
-# --- 8. एडमिन जोड़ना और हटाना (/addadmin, /removeadmin) ---
 @Client.on_message(filters.command("addadmin") & filters.user(ADMIN_ID))
 async def add_admin_handler(client, message):
     args = message.text.split()
