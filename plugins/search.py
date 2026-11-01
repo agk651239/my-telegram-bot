@@ -1,16 +1,16 @@
-from pyrogram import filters, types
+from pyrogram import Client, filters, types
 import asyncio
 import logging
 from humanfriendly import format_size
 from natsort import natsorted  # <-- यह नई लाइब्रेरी जोड़ी गई है
-from config import BOT_USERNAME, DATABASE_CHANNEL, LOG_CHANNEL, ADMIN_IDS
-from database import db
-from helpers import get_file_info, add_file, clean_file_name
+from config import *
+from database import * 
+from helpers import *
 
-# एल्बम प्रोसेसिंग के लिए सेट
 processed_albums = set()
 
-# --- फाइल इंडेक्सिंग (यह आपके main.py से यहाँ आया है) ---
+# --- 5. फाइल इंडेक्सिंग ---
+@Client.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video | filters.photo))
 async def index_files(client, message):
     if message.media_group_id:
         if message.media_group_id in processed_albums:
@@ -38,13 +38,25 @@ async def index_files(client, message):
                 logging.error(f"Log Error (Album Upload): {e}")
 
         except Exception as e:
-            logging.error(f"Album Indexing Error: {e}")
+            logging.error(e)
+        finally:
+            processed_albums.discard(message.media_group_id)
+        return
 
-# --- ऑटो सर्च (यहाँ सॉर्टिंग फिक्स हुई है) ---
+    file_info = await get_file_info(message)
+    if file_info:
+        await add_file(file_info)
+        try:
+            file_name = file_info.get('name', 'Unknown')
+            await client.send_message(LOG_CHANNEL, f"📤 **File Upload Successfully:** `{file_name}`")
+        except Exception as e:
+            logging.error(f"Log Error (File Upload): {e}")
+
+# --- 6. ऑटो सर्च और लाइव चैट मैसेज फॉरवर्डिंग ---
+@Client.on_message(filters.text & ~filters.command(["start", "broadcast", "stats", "help", "setprice", "updateprice", "nobypass", "set_qr", "connect", "problemsolve", "myplan", "pricing", "plans", "users", "addadmin", "removeadmin"]))
 async def auto_search(client, message):
     user_id = message.from_user.id
     
-    # 1. यदि एडमिन लाइव चैट मोड में है तो मैसेज सीधे यूजर को जाए
     if user_id in ADMIN_IDS:
         live_data = await db.settings.find_one({"type": "live_chat"})
         if live_data and live_data.get("active_admin") == user_id:
@@ -57,7 +69,6 @@ async def auto_search(client, message):
                     await message.reply(f"❌ यूजर को भेजने में एरर: {e}")
                     return
 
-    # 2. यदि यूजर लाइव चैट मोड में है तो मैसेज सीधे एडमिन को जाए
     live_data = await db.settings.find_one({"type": "live_chat"})
     if live_data and live_data.get("active_user") == user_id:
         adm = live_data.get("active_admin")
@@ -76,10 +87,10 @@ async def auto_search(client, message):
     if not files: 
         return await message.reply("❌ कोई फाइल नहीं मिली। / No file found.")
     
-    # ==========================================
+    # ==============================================================
     # 🆕 यहाँ natsorted का जादू है (1, 2, 10, 11 के लिए)
     files = natsorted(files, key=lambda x: x.get("name", ""))
-    # ==========================================
+    # ==============================================================
 
     buttons = []
     processed_groups = set()
@@ -98,15 +109,3 @@ async def auto_search(client, message):
             buttons.append(btn)
 
     await message.reply(f"📂 **'{query}' के लिए रिजल्ट्स:**", reply_markup=types.InlineKeyboardMarkup(buttons))
-
-# --- हैंडलर्स को रजिस्टर करना ---
-def register_search_handlers(app):
-    # इंडेक्सिंग हैंडलर
-    app.on_message(filters.chat(DATABASE_CHANNEL) & (filters.document | filters.video | filters.photo))(index_files)
-    
-    # सर्च हैंडलर (इसमें सभी कमांड्स को छोड़ दिया गया है ताकि वे अलग से काम करें)
-    app.on_message(filters.text & ~filters.command([
-        "start", "broadcast", "stats", "help", "setprice", "updateprice", 
-        "nobypass", "set_qr", "connect", "problemsolve", "myplan", 
-        "pricing", "plans", "users", "addadmin", "removeadmin"
-    ]))(auto_search)
