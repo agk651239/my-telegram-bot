@@ -21,13 +21,19 @@ async def broadcast_handler(client, message):
             await asyncio.sleep(0.05) 
         except (UserIsBlocked, InputUserDeactivated):
             blocked += 1
+            # 🆕 ब्लॉक किए गए यूजर को डेटाबेस से डिलीट करें ताकि काउंट सही रहे
+            await db.users.delete_one({"user_id": user["user_id"]})
+            
             try:
-                await client.send_message(LOG_CHANNEL, f"🚫 **User Blocked Bot:** `{user['user_id']}`")
+                await client.send_message(
+                    LOG_CHANNEL, 
+                    f"🚫 **User Blocked Bot:** `{user['user_id']}`\n🗑️ **Removed from DB (Count Updated)**"
+                )
             except Exception as e:
                 logging.error(f"Log Error (User Blocked): {e}")
         except: 
             pass
-    await message.reply(f"✅ मैसेज {success} यूजर्स को भेज दिया गया। (ब्लॉक किए गए: {blocked})")
+    await message.reply(f"✅ मैसेज {success} यूजर्स को भेज दिया गया। (ब्लॉक किए गए और डिलीट किए गए: {blocked})")
 
 # --- 2. स्टेटस कमांड (Advanced /stats) ---
 @Client.on_message(filters.command("stats") & filters.user(ADMIN_IDS))
