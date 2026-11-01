@@ -1,9 +1,8 @@
 from pyrogram import Client, filters, types
 import logging
-from config import ADMIN_ID, UPI_ID, ADMIN_IDS
-from database import db, get_plan_prices, get_qr_code
+from config import *
+from database import * 
 
-# --- 1. प्रीमियम मेनू (बटन कॉलबैक) ---
 @Client.on_callback_query(filters.regex("buy_premium_menu"))
 async def buy_premium_menu_cb(client, callback_query):
     prices = await get_plan_prices()
@@ -19,7 +18,6 @@ async def buy_premium_menu_cb(client, callback_query):
     await callback_query.message.edit_text("💎 **अपना प्रीमियम प्लान चुनें / Select Your Premium Plan:**", reply_markup=types.InlineKeyboardMarkup(buttons))
     await callback_query.answer()
 
-# --- 2. प्लान सेलेक्ट करने पर (QR कोड और UPI आईडी) ---
 @Client.on_callback_query(filters.regex(r"^buyplan_"))
 async def plan_selected_cb(client, callback_query):
     plan_key = callback_query.data.split("buyplan_")[1]
@@ -47,12 +45,10 @@ async def plan_selected_cb(client, callback_query):
     await callback_query.message.edit_text(pay_text, reply_markup=types.InlineKeyboardMarkup(buttons))
     await callback_query.answer()
 
-# --- 3. "मैंने पेमेंट कर दिया है" बटन ---
 @Client.on_callback_query(filters.regex(r"^paid_"))
 async def user_paid_cb(client, callback_query):
     plan_key = callback_query.data.split("paid_")[1]
     
-    # तुरंत डेटाबेस में सही प्लान अपडेट करें
     await db.users.update_one(
         {"user_id": callback_query.from_user.id}, 
         {"$set": {"pending_plan": plan_key}},
@@ -66,7 +62,6 @@ async def user_paid_cb(client, callback_query):
     )
     await callback_query.answer()
 
-# --- 4. पेमेंट स्क्रीनशॉट हैंडलर (एडमिन को भेजना) ---
 @Client.on_message(filters.photo)
 async def payment_screenshot_handler(client, message):
     user_id = message.from_user.id
