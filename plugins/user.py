@@ -4,10 +4,31 @@ import asyncio
 import logging
 import time
 from config import *
-from database import db, get_file_by_id, is_verified, set_verify, add_user, get_plan_prices
-from helpers import get_shortlink, delete_after_delay, delete_album_after_delay
+from database import * 
+from helpers import *
 
-# --- 1. हेल्प कमांड (/help) ---
+# --- फंक्शन: मैसेज ऑटो-डिलीट ---
+async def delete_after_delay(message, delay):
+    await asyncio.sleep(delay)
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+# --- फंक्शन: एल्बम ऑटो-डिलीट ---
+async def delete_album_after_delay(client, messages, warn_msg, delay):
+    await asyncio.sleep(delay)
+    for msg in messages:
+        try:
+            await client.delete_messages(msg.chat.id, msg.id)
+        except Exception:
+            pass
+    try:
+        await warn_msg.delete()
+    except Exception:
+        pass
+
+# हेल्प कमांड
 @Client.on_message(filters.command("help"))
 async def help_handler(client, message):
     help_text = (
@@ -25,7 +46,7 @@ async def help_handler(client, message):
     
     await message.reply_text(help_text, reply_markup=types.InlineKeyboardMarkup(buttons))
 
-# --- 2. लाइव चैट बटन (ask_admin) ---
+# लाइव चैट (ask_admin)
 @Client.on_callback_query(filters.regex("ask_admin"))
 async def ask_admin_cb(client, callback_query):
     u_id = callback_query.from_user.id
@@ -38,7 +59,7 @@ async def ask_admin_cb(client, callback_query):
         except:
             pass
 
-# --- 3. माय प्लान (/myplan) ---
+# Myplan
 @Client.on_message(filters.command("myplan"))
 async def my_plan_handler(client, message):
     user_id = message.from_user.id
@@ -62,7 +83,7 @@ async def my_plan_handler(client, message):
     buttons = [[types.InlineKeyboardButton("💎 प्रीमियम प्लान देखें / View Plans", callback_data="buy_premium_menu")]]
     await message.reply(status_text, reply_markup=types.InlineKeyboardMarkup(buttons))
 
-# --- 4. प्राइसिंग (/pricing, /plans) ---
+# Pricing
 @Client.on_message(filters.command(["pricing", "plans"]))
 async def pricing_handler(client, message):
     prices = await get_plan_prices()
@@ -80,7 +101,7 @@ async def pricing_handler(client, message):
     buttons = [[types.InlineKeyboardButton("💳 अभी खरीदें / Buy Now", callback_data="buy_premium_menu")]]
     await message.reply(text, reply_markup=types.InlineKeyboardMarkup(buttons))
 
-# --- 5. स्टार्ट कमांड (सबसे बड़ा फंक्शन) ---
+# Start
 @Client.on_message(filters.command("start"))
 async def start(client, message):
     if not message.from_user:
@@ -88,7 +109,6 @@ async def start(client, message):
     user_id = message.from_user.id
     is_admin = (user_id in ADMIN_IDS)
     
-    # लाइव चैट मैसेज फॉरवर्डिंग (यदि यूजर चैट मोड में है)
     live_data = await db.settings.find_one({"type": "live_chat"})
     if live_data and not is_admin:
         if live_data.get("active_user") == user_id:
@@ -146,7 +166,6 @@ async def start(client, message):
         )
         return
 
-    # --- Force Channels Check (Public & Private) ---
     if not is_admin:
         if PUBLIC_CHANNELS:
             for channel in PUBLIC_CHANNELS:
@@ -308,7 +327,7 @@ async def start(client, message):
                 "⚠️ **आपकी फाइल 1 घंटे में अपने आप डिलीट हो जाएगी। कृपया इसे अभी सेव कर लें!**\n\n"
                 "**Your file will be deleted automatically in 1 hour. Please save it now!**"
             )
-            asyncio.create_task(delete_album_after_delay(sent_msgs, warn_msg, 3600, client))
+            asyncio.create_task(delete_album_after_delay(client, sent_msgs, warn_msg, 3600))
         except Exception as e:
             await message.reply(f"❌ एल्बम भेजने में एरर: {e}")
         return
