@@ -6,4 +6,4 @@ python-dotenv>=1.0.1
 aiohttp>=3.9.5
 dnspython>=2.6.1
 humanfriendly
-
+natsort
