@@ -1,6 +1,7 @@
 import aiohttp
 import logging
 import re
+import asyncio
 from typing import Optional, Dict, Any
 from pyrogram.types import Message
 from config import SHORTENER_API, SHORTENER_WEBSITE
@@ -8,7 +9,7 @@ from config import SHORTENER_API, SHORTENER_WEBSITE
 # लॉगिंग सेटअप
 logger = logging.getLogger(__name__)
 
-# नाम को साफ़ करने के लिए फंक्शन
+# 1. नाम को साफ़ करने के लिए फंक्शन
 def clean_file_name(name: str) -> str:
     if not name: return "Untitled" 
     # फाइल नाम से फालतू स्पेशल कैरेक्टर्स और इमोजी हटाना
@@ -21,7 +22,7 @@ def clean_file_name(name: str) -> str:
     name = re.sub(r"\s+", " ", name)
     return name.strip()[:100]
 
-# 1. शॉर्टनर लिंक जेनरेट करने के लिए फंक्शन
+# 2. शॉर्टनर लिंक जेनरेट करने के लिए फंक्शन
 async def get_shortlink(url: str) -> str:
     if not SHORTENER_API or not SHORTENER_WEBSITE:
         return url
@@ -44,7 +45,7 @@ async def get_shortlink(url: str) -> str:
         logger.error(f"❌ शॉर्टनर API में एरर: {e}")
         return url
 
-# 2. फाइल की जानकारी
+# 3. फाइल की जानकारी निकालने के लिए फंक्शन
 async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     # मीडिया ऑब्जेक्ट की पहचान
     media = message.document or message.video or message.audio or message.photo
@@ -61,7 +62,6 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
     if message.caption:
         file_name = message.caption
     else:
-        # यहाँ getattr से फाइल नाम निकाला गया है, यदि नहीं मिलता तो file_type का इस्तेमाल होगा
         file_name = getattr(media, "file_name", file_type.capitalize())
         
     # नाम को क्लीन करना
@@ -76,7 +76,6 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
             thumb_id = message.photo.file_id
     elif media and getattr(media, "thumbs", None):
         thumbs = media.thumbs
-        # सुरक्षित थंबनेल इंडेक्सिंग
         if thumbs:
             thumb_id = thumbs[-1].file_id
         
@@ -90,4 +89,24 @@ async def get_file_info(message: Message) -> Optional[Dict[str, Any]]:
         "message_id": message.id,
         "media_group_id": getattr(message, "media_group_id", None) 
     }
-    
+
+# 4. मैसेज ऑटो-डिलीट करने के लिए फंक्शन (नया जोड़ा गया है)
+async def delete_after_delay(message, delay):
+    await asyncio.sleep(delay)
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+# 5. एल्बम ऑटो-डिलीट करने के लिए फंक्शन (नया जोड़ा गया है)
+async def delete_album_after_delay(messages, warn_msg, delay, client):
+    await asyncio.sleep(delay)
+    for msg in messages:
+        try:
+            await client.delete_messages(msg.chat.id, msg.id)
+        except Exception:
+            pass
+    try:
+        await warn_msg.delete()
+    except Exception:
+        pass
